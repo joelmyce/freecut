@@ -1,5 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws'
 import { runAgentTurn, type AgentEvent } from '../agent.ts'
+import type { ProvidersBundle } from '../providers/index.ts'
+import { SocketBrowserActionBridge } from './browser-action-bridge.ts'
 import {
   BRIDGE_PROTOCOL_VERSION,
   decodeBridgeMessage,
@@ -11,12 +13,14 @@ import {
 export interface BridgeServerOptions {
   port: number
   serverInfo: { name: string; version: string }
+  providers: ProvidersBundle
   log?: (message: string, meta?: Record<string, unknown>) => void
 }
 
 interface ClientState {
   socket: WebSocket
   activeTurnAborts: Map<string, AbortController>
+  bridge: SocketBrowserActionBridge
 }
 
 export function startBridgeServer(options: BridgeServerOptions): WebSocketServer {
@@ -31,7 +35,11 @@ export function startBridgeServer(options: BridgeServerOptions): WebSocketServer
   wss.on('connection', (socket, request) => {
     const remote = request.socket.remoteAddress ?? 'unknown'
     log(`client connected from ${remote}`)
-    const state: ClientState = { socket, activeTurnAborts: new Map() }
+    const bridge = new SocketBrowserActionBridge({
+      send: (msg) => sendToClient(socket, msg),
+      isOpen: () => socket.readyState === WebSocket.OPEN,
+    })
+    const state: ClientState = { socket, activeTurnAborts: new Map(), bridge }
     clients.set(socket, state)
 
     sendToClient(socket, {
@@ -50,13 +58,14 @@ export function startBridgeServer(options: BridgeServerOptions): WebSocketServer
         sendToClient(socket, { type: 'error', message: 'invalid JSON' })
         return
       }
-      void handleClientMessage(state, message, log)
+      void handleClientMessage(state, message, options.providers, log)
     })
 
     socket.on('close', () => {
       log(`client disconnected from ${remote}`)
       for (const controller of state.activeTurnAborts.values()) controller.abort()
       state.activeTurnAborts.clear()
+      state.bridge.rejectAll(new Error('client disconnected'))
       clients.delete(socket)
     })
 
@@ -75,11 +84,11 @@ export function startBridgeServer(options: BridgeServerOptions): WebSocketServer
 async function handleClientMessage(
   state: ClientState,
   message: BrowserToServerMessage,
+  providers: ProvidersBundle,
   log: (m: string, meta?: Record<string, unknown>) => void,
 ): Promise<void> {
   switch (message.type) {
     case 'hello':
-      // No-op for now — protocol negotiation reserved for later milestones.
       log('client hello', { protocolVersion: message.protocolVersion })
       return
 
@@ -94,6 +103,8 @@ async function handleClientMessage(
           userText: text,
           timelineSummary,
           abortSignal: abort.signal,
+          bridge: state.bridge,
+          providers,
           onMessage: (event) => forwardAgentEvent(state.socket, turnId, event),
         })
       } finally {
@@ -111,9 +122,13 @@ async function handleClientMessage(
       return
     }
 
-    case 'browser-action-result':
+    case 'browser-action-result': {
+      state.bridge.handleResult(message.requestId, message.result, message.error)
+      return
+    }
+
     case 'state-changed':
-      // Reserved for later milestones (browser-delegated providers, state sync).
+      // Reserved for later milestones (state sync).
       return
   }
 }

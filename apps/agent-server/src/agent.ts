@@ -1,18 +1,26 @@
 import { query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { ALLOWED_TOOL_NAMES, createToolMcpServer } from './tools/registry.ts'
+import type { BrowserActionBridge, ProvidersBundle } from './providers/index.ts'
 
 const SYSTEM_PROMPT = `You are FreeCut's in-editor assistant. You help the user edit videos by calling high-level tools.
 
-For this milestone (M0) you have one tool available:
-- echo({ message }): repeats a message back verbatim.
+Available tools (M1):
+- transcribe({ asset_id, provider?, language? }): transcribe a video or audio clip and save the transcript. Returns { transcriptId, segmentCount, durationSec, provider, routingReason }. Does NOT modify the timeline.
+- echo({ message }): repeats a message back verbatim — useful only as a connection sanity check.
 
-When the user asks you to say or echo something, call the echo tool with the exact message they want repeated, then briefly confirm. Keep replies short.`
+When the user includes a <timeline-summary>, treat it as the live state of their project. Every clip cell shows its id in parentheses, e.g. "[00:00-00:12 intro.mp4 (clip_a8)]". Use those ids verbatim as the asset_id argument when the user refers to a clip by filename or position.
+
+Default to provider="auto" unless the user explicitly asks for "local" or "openai".
+
+Keep replies short. After calling a tool, summarize what happened in one or two sentences and reference the relevant clip(s) by id.`
 
 export interface RunAgentTurnOptions {
   turnId: string
   userText: string
   timelineSummary?: string
   abortSignal?: AbortSignal
+  bridge: BrowserActionBridge
+  providers: ProvidersBundle
   onMessage(event: AgentEvent): void
 }
 
@@ -24,13 +32,18 @@ export type AgentEvent =
   | { kind: 'error'; message: string }
 
 export async function runAgentTurn(options: RunAgentTurnOptions): Promise<void> {
-  const { userText, timelineSummary, abortSignal, onMessage } = options
+  const { userText, timelineSummary, abortSignal, bridge, providers, onMessage } = options
 
   const prompt = timelineSummary
     ? `${userText}\n\n<timeline-summary>\n${timelineSummary}\n</timeline-summary>`
     : userText
 
-  const mcpServer = createToolMcpServer()
+  const turnAbortController = abortSignal ? toAbortController(abortSignal) : new AbortController()
+  const mcpServer = createToolMcpServer({
+    bridge,
+    providers,
+    abortSignal: turnAbortController.signal,
+  })
 
   try {
     for await (const msg of query({
@@ -47,7 +60,7 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<void> 
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         systemPrompt: SYSTEM_PROMPT,
-        abortController: abortSignal ? toAbortController(abortSignal) : undefined,
+        abortController: turnAbortController,
       },
     })) {
       forwardSdkMessage(msg, onMessage)

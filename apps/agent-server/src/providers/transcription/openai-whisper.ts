@@ -14,8 +14,13 @@ interface OpenAIVerboseJsonResponse {
   }>
 }
 
+/**
+ * Browser-delivered audio bytes are base64-encoded inside the JSON bridge
+ * message (WebSocket text frames only carry UTF-8, and a binary subprotocol
+ * isn't worth the complexity for v1). Decoded here before the multipart POST.
+ */
 interface AudioPayload {
-  bytes: ArrayBuffer
+  bytes: string
   filename: string
   mimeType: string
 }
@@ -66,8 +71,9 @@ export class OpenAIWhisperProvider implements TranscriptionProvider {
     )
 
     ctx.onProgress?.({ stage: 'uploading' })
+    const audioBytes = Buffer.from(audio.bytes, 'base64')
     const form = new FormData()
-    form.append('file', new Blob([audio.bytes], { type: audio.mimeType }), audio.filename)
+    form.append('file', new Blob([audioBytes], { type: audio.mimeType }), audio.filename)
     form.append('model', input.model ?? this.model)
     form.append('response_format', 'verbose_json')
     if (input.language) {

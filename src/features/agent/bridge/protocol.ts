@@ -56,6 +56,7 @@ export type ServerToBrowserMessage =
       action: string
       args: unknown
     }
+  | { type: 'cancel-browser-action'; requestId: string }
   | { type: 'turn-end'; turnId: string }
   | { type: 'error'; message: string; turnId?: string }
 

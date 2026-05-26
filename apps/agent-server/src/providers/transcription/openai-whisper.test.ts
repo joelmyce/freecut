@@ -37,7 +37,7 @@ describe('OpenAIWhisperProvider', () => {
 
   it('fetches audio, POSTs to OpenAI, saves transcript, and returns it', async () => {
     const audio = {
-      bytes: new ArrayBuffer(8),
+      bytes: Buffer.from('fake-wav-bytes').toString('base64'),
       filename: 'm1.wav',
       mimeType: 'audio/wav',
     }
@@ -111,7 +111,7 @@ describe('OpenAIWhisperProvider', () => {
   it('throws when OpenAI returns a non-ok response', async () => {
     const bridge: BrowserActionBridge = {
       invokeBrowserAction: vi.fn(async () => ({
-        bytes: new ArrayBuffer(0),
+        bytes: '',
         filename: 'x.wav',
         mimeType: 'audio/wav',
       })) as BrowserActionBridge['invokeBrowserAction'],
@@ -131,7 +131,7 @@ describe('OpenAIWhisperProvider', () => {
 
   it('uses the configured model when input.model is not set', async () => {
     const audio = {
-      bytes: new ArrayBuffer(0),
+      bytes: '',
       filename: 'x.wav',
       mimeType: 'audio/wav',
     }
