@@ -49,6 +49,10 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<void> 
     for await (const msg of query({
       prompt,
       options: {
+        // Pin Sonnet explicitly so the model doesn't drift with Claude Code's
+        // default. Bump to a newer tag (e.g. 'claude-sonnet-4-7') or Opus
+        // here if a turn needs more horsepower.
+        model: 'claude-sonnet-4-6',
         mcpServers: { freecut: mcpServer },
         allowedTools: ALLOWED_TOOL_NAMES,
         // Disable all built-in tools (Bash, Read, Edit, ToolSearch, Skill, etc).
