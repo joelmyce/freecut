@@ -68,6 +68,16 @@ src/
 └── types/                 # Shared TypeScript types
 ```
 
+**Dual-package layout (Phase 1 AI agent):** alongside `src/`, the repo
+ships `apps/agent-server/` — a Node + TypeScript npm-workspace package
+that hosts the Claude Agent SDK and exposes editing tools to the browser
+over a WebSocket bridge on `ws://localhost:5174`. The browser-side client
+lives at `src/features/agent/`. Run with `npm run dev:agent` (server only)
+or `npm run dev:all` (Vite + server in parallel). The bridge protocol is
+manually duplicated at `apps/agent-server/src/bridge/protocol.ts` and
+`src/features/agent/bridge/protocol.ts` — keep them in sync. See
+`docs/PHASE-1-PLAN.md` for the milestone plan.
+
 ## Key Patterns
 
 - **State**: Zustand stores + Zundo for undo/redo

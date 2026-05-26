@@ -2,11 +2,16 @@
   "name": "freecut",
   "version": "0.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vp dev --host",
     "dev:quiet": "vp dev --host --mode perf",
     "dev:compare": "node scripts/run-dev-and-perf.mjs",
+    "dev:agent": "npm run dev --workspace=@freecut/agent-server",
+    "dev:all": "node scripts/run-dev-and-agent.mjs",
     "build": "vp build",
     "build:perf": "vp build --mode perf",
     "lint": "vp lint src vite.config.ts",

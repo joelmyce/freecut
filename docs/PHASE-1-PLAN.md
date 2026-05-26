@@ -1,7 +1,12 @@
 # Phase 1 — Implementation Plan
 
-**Status:** Draft. Generated from the build brief + `docs/ARCHITECTURE.md` §5–§6
-after Phase 0 reconnaissance.
+**Status:** In progress. **M0 complete (2026-05-26)** — agent server, WS
+bridge, browser client, dev scripts, and end-to-end `echo` roundtrip all
+verified. **M1 (transcribe) is next.** See `~/.claude/projects/-Users-joelm-Documents-Antigravity-FreeCut/memory/ai-video-editor-status.md`
+for the live status and current-session caveats.
+
+Generated from the build brief + `docs/ARCHITECTURE.md` §5–§6 after Phase 0
+reconnaissance.
 
 **Premise:** Phase 1 builds **Workflow 2 first** — AI-assisted timeline editing
 via a chat agent. Workflow 1 (storyboard view) is Phase 2. Per the brief's
@@ -56,7 +61,7 @@ B-roll replace the placeholder ~30s later.
 
 Five items, in build order. Nothing else starts until 2.1 is real.
 
-### 2.1 Local agent-server scaffold *(gated by Q1 — must come first)*
+### 2.1 Local agent-server scaffold *(gated by Q1 — must come first)* ✅ **DONE (M0)**
 
 **Location:** `apps/agent-server/` — new top-level directory, sibling to `src/`.
 

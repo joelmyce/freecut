@@ -5,9 +5,17 @@ import { i18n } from './i18n'
 import { App } from './app'
 import { initializeDebugUtils } from '@/app/debug'
 import { createLogger } from '@/shared/logging/logger'
+import { getAgentBridgeClient } from '@/features/agent'
 import './index.css'
 
 const log = createLogger('App')
+
+// Open the local agent-server bridge in dev. In production there's no
+// agent-server running, so skip to avoid a reconnect storm against a closed
+// port — Phase 1 ships as a dev-only tool.
+if (import.meta.env.DEV) {
+  getAgentBridgeClient()
+}
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
 const ACCEPTED_APP_UPDATE_SIGNATURE_KEY = 'freecut-accepted-app-update-signature'
 
