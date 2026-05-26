@@ -38,6 +38,12 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<void> 
       options: {
         mcpServers: { freecut: mcpServer },
         allowedTools: ALLOWED_TOOL_NAMES,
+        // Disable all built-in tools (Bash, Read, Edit, ToolSearch, Skill, etc).
+        // The editor agent only operates via MCP-registered tools — anything
+        // else would be both unnecessary and a way for the model to escape
+        // the editor surface. Without this, the M0 trace showed the agent
+        // calling ToolSearch to discover our MCP tool before invoking it.
+        tools: [],
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
         systemPrompt: SYSTEM_PROMPT,

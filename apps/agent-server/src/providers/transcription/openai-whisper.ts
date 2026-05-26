@@ -1,0 +1,115 @@
+import type { ProviderContext } from '../types.ts'
+import type { Transcript, TranscriptionInput, TranscriptionProvider } from './types.ts'
+
+const OPENAI_TRANSCRIPTIONS_URL = 'https://api.openai.com/v1/audio/transcriptions'
+
+interface OpenAIVerboseJsonResponse {
+  text: string
+  language?: string
+  duration?: number
+  segments?: ReadonlyArray<{
+    start: number
+    end: number
+    text: string
+  }>
+}
+
+interface AudioPayload {
+  bytes: ArrayBuffer
+  filename: string
+  mimeType: string
+}
+
+export interface OpenAIWhisperProviderOptions {
+  apiKey: string | undefined
+  model?: string
+  fetchImpl?: typeof fetch
+}
+
+/**
+ * Server-side OpenAI Whisper provider. Flow:
+ *   1. Ask browser for the conformed audio bytes (re-uses the existing
+ *      audio-conform pipeline that already produces WAV for unsupported
+ *      codecs — see media-transcription-service in the browser).
+ *   2. POST multipart to /v1/audio/transcriptions with verbose_json so we
+ *      get timestamps for segments.
+ *   3. Send the resulting Transcript back to the browser to persist via
+ *      the existing `saveTranscript()` path.
+ */
+export class OpenAIWhisperProvider implements TranscriptionProvider {
+  readonly id = 'openai-whisper' as const
+  private readonly apiKey: string | undefined
+  private readonly model: string
+  private readonly fetchImpl: typeof fetch
+
+  constructor(options: OpenAIWhisperProviderOptions) {
+    const trimmed = options.apiKey?.trim()
+    this.apiKey = trimmed && trimmed.length > 0 ? trimmed : undefined
+    this.model = options.model ?? 'whisper-1'
+    this.fetchImpl = options.fetchImpl ?? fetch
+  }
+
+  isAvailable(): boolean {
+    return Boolean(this.apiKey)
+  }
+
+  async transcribe(input: TranscriptionInput, ctx: ProviderContext): Promise<Transcript> {
+    if (!this.apiKey) {
+      throw new Error('OpenAI Whisper requires OPENAI_API_KEY')
+    }
+
+    ctx.onProgress?.({ stage: 'fetching-audio' })
+    const audio = await ctx.bridge.invokeBrowserAction<AudioPayload>(
+      'read-transcribable-audio',
+      { mediaId: input.assetId },
+      ctx.signal,
+    )
+
+    ctx.onProgress?.({ stage: 'uploading' })
+    const form = new FormData()
+    form.append('file', new Blob([audio.bytes], { type: audio.mimeType }), audio.filename)
+    form.append('model', input.model ?? this.model)
+    form.append('response_format', 'verbose_json')
+    if (input.language) {
+      form.append('language', input.language)
+    }
+
+    ctx.onProgress?.({ stage: 'transcribing' })
+    const res = await this.fetchImpl(OPENAI_TRANSCRIPTIONS_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+      body: form,
+      signal: ctx.signal,
+    })
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      const suffix = detail ? ` — ${detail.slice(0, 500)}` : ''
+      throw new Error(`OpenAI Whisper request failed: ${res.status} ${res.statusText}${suffix}`)
+    }
+    const json = (await res.json()) as OpenAIVerboseJsonResponse
+
+    const transcript: Transcript = {
+      text: json.text,
+      language: json.language,
+      durationSec: json.duration ?? 0,
+      segments: (json.segments ?? []).map((s) => ({
+        text: s.text.trim(),
+        start: s.start,
+        end: s.end,
+      })),
+    }
+
+    ctx.onProgress?.({ stage: 'saving' })
+    await ctx.bridge.invokeBrowserAction(
+      'save-transcript',
+      {
+        mediaId: input.assetId,
+        transcript,
+        providerId: this.id,
+      },
+      ctx.signal,
+    )
+
+    return transcript
+  }
+}
