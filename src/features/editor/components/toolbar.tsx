@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import {
   ArrowLeft,
+  Bot,
   Bug,
   ChevronDown,
   Download,
@@ -34,6 +35,7 @@ import { EDITOR_LAYOUT_CSS_VALUES } from '@/config/editor-layout'
 import { cn } from '@/shared/ui/cn'
 import { LanguageSwitcher } from '@/shared/ui/language-switcher'
 import { useDebugStore } from '@/features/editor/stores/debug-store'
+import { useEditorStore } from '@/shared/state/editor'
 
 const SAVE_ANIMATION_MIN_MS = 1800
 
@@ -70,6 +72,8 @@ export const Toolbar = memo(function Toolbar({
   const [isSaveAnimating, setIsSaveAnimating] = useState(false)
   const [saveAnimationKey, setSaveAnimationKey] = useState(0)
   const saveAnimationTimeoutRef = useRef<number | undefined>(undefined)
+  const chatPanelOpen = useEditorStore((s) => s.chatPanelOpen)
+  const toggleChatPanelOpen = useEditorStore((s) => s.toggleChatPanelOpen)
 
   useEffect(() => {
     setHasUnseenWhatsNew(hasUnseenChangelog())
@@ -199,6 +203,19 @@ export const Toolbar = memo(function Toolbar({
             />
           )}
         </Button>
+        {import.meta.env.DEV && (
+          <Button
+            variant={chatPanelOpen ? 'default' : 'outline'}
+            size="icon"
+            className="h-7 w-7"
+            onClick={toggleChatPanelOpen}
+            data-tooltip="Agent chat (dev)"
+            data-tooltip-side="bottom"
+            aria-label="Toggle agent chat panel"
+          >
+            <Bot className="h-4 w-4" />
+          </Button>
+        )}
         <Button
           variant="outline"
           size="icon"

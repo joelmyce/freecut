@@ -83,6 +83,13 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
       return true
     }
   })(),
+  chatPanelOpen: (() => {
+    try {
+      return localStorage.getItem('editor:chatPanelOpen') === 'true'
+    } catch {
+      return false
+    }
+  })(),
 
   // Actions
   setActivePanel: (panel) => set({ activePanel: panel }),
@@ -276,5 +283,23 @@ export const useEditorStore = create<EditorState & EditorActions>((set) => ({
         /* noop */
       }
       return { mediaFullColumn: next }
+    }),
+  setChatPanelOpen: (open) => {
+    try {
+      localStorage.setItem('editor:chatPanelOpen', String(open))
+    } catch {
+      /* noop */
+    }
+    set({ chatPanelOpen: open })
+  },
+  toggleChatPanelOpen: () =>
+    set((state) => {
+      const next = !state.chatPanelOpen
+      try {
+        localStorage.setItem('editor:chatPanelOpen', String(next))
+      } catch {
+        /* noop */
+      }
+      return { chatPanelOpen: next }
     }),
 }))

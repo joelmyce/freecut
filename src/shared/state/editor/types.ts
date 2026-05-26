@@ -26,6 +26,7 @@ export interface EditorState {
   mixerFloating: boolean
   propertiesFullColumn: boolean
   mediaFullColumn: boolean
+  chatPanelOpen: boolean
 }
 
 export interface EditorActions {
@@ -71,4 +72,6 @@ export interface EditorActions {
   toggleMixerFloating: () => void
   togglePropertiesFullColumn: () => void
   toggleMediaFullColumn: () => void
+  setChatPanelOpen: (open: boolean) => void
+  toggleChatPanelOpen: () => void
 }

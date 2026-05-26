@@ -23,6 +23,8 @@ export {
 export { attachBrowserActionDispatcher } from './handlers/dispatcher'
 export { captureTimelineAgentSnapshot } from './timeline-snapshot'
 export { createAgentDebugApi, type AgentDebugApi } from './debug'
+export { ChatPanel } from './components'
+export { useAgentChat, type ChatMessage, type UseAgentChat } from './hooks/use-agent-chat'
 
 let initialized = false
 

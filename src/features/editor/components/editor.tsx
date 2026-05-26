@@ -52,6 +52,7 @@ import {
   useEmbeddedSubtitlePickerStore,
   useSubtitleScanProgressStore,
 } from '@/features/editor/deps/media-library'
+import { ChatPanel } from '@/features/editor/deps/agent-contract'
 const logger = createLogger('Editor')
 const EDITOR_PROJECT_ROUTE_ID = '/editor/$projectId'
 const LazyExportDialog = lazy(() =>
@@ -238,6 +239,8 @@ export const LoadedEditor = memo(function LoadedEditor({
   const syncSidebarLayout = useEditorStore((s) => s.syncSidebarLayout)
   const propertiesFullColumn = useEditorStore((s) => s.propertiesFullColumn)
   const mediaFullColumn = useEditorStore((s) => s.mediaFullColumn)
+  const chatPanelOpen = useEditorStore((s) => s.chatPanelOpen)
+  const setChatPanelOpen = useEditorStore((s) => s.setChatPanelOpen)
   const isMaskEditingActive = useMaskEditorStore((s) => s.isEditing)
   const hasRefreshedMigrationStateRef = useRef(false)
 
@@ -594,6 +597,11 @@ export const LoadedEditor = memo(function LoadedEditor({
       <ReverseConformDialog />
       <SilenceRemovalDialog />
       <FillerRemovalDialog />
+
+      {/* Phase 1 AI agent chat — dev-only because the agent-server isn't shipped. */}
+      {import.meta.env.DEV && chatPanelOpen && (
+        <ChatPanel onClose={() => setChatPanelOpen(false)} />
+      )}
     </div>
   )
 })
