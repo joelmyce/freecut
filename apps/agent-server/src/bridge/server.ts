@@ -153,7 +153,7 @@ function forwardAgentEvent(socket: WebSocket, turnId: string, event: AgentEvent)
         turnId,
         callId: event.callId,
         result: event.result,
-        error: event.isError ? 'tool reported error' : undefined,
+        error: event.isError ? describeToolError(event.result) : undefined,
       })
       return
     case 'turn-end':
@@ -163,6 +163,26 @@ function forwardAgentEvent(socket: WebSocket, turnId: string, event: AgentEvent)
       sendToClient(socket, { type: 'error', message: event.message, turnId })
       return
   }
+}
+
+/**
+ * Extract the human-readable error message from an MCP tool_result that came
+ * back with `is_error: true`. The SDK wraps thrown errors as text content
+ * blocks like `[{ type: 'text', text: 'unknown media: foo' }]`. Without
+ * this, the chat would just see "tool reported error" and the agent would
+ * have to guess what went wrong.
+ */
+function describeToolError(result: unknown): string {
+  if (Array.isArray(result)) {
+    for (const block of result) {
+      if (block && typeof block === 'object' && 'text' in block) {
+        const text = (block as { text?: unknown }).text
+        if (typeof text === 'string' && text.length > 0) return text
+      }
+    }
+  }
+  if (typeof result === 'string' && result.length > 0) return result
+  return 'tool reported error'
 }
 
 function sendToClient(socket: WebSocket, message: ServerToBrowserMessage): void {

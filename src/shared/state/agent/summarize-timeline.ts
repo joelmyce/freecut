@@ -101,7 +101,21 @@ function renderItemCell(
   const start = formatFrames(item.from, snapshot.fps)
   const end = formatFrames(item.from + item.durationInFrames, snapshot.fps)
   const body = renderItemBody(item, snapshot)
-  return `[${start}-${end} ${body} (${item.id}${flagSuffix})]`
+  return `[${start}-${end} ${body} (${renderItemIdTag(item)}${flagSuffix})]`
+}
+
+/**
+ * Tools differentiate by what they need: transcribe / add_subtitles operate
+ * on the source media (mediaId), while clip-specific tools like split or
+ * delete operate on a specific timeline item (item.id). Tagging the id with
+ * `media:` vs `item:` removes the ambiguity that bit M1's first transcribe
+ * trace, where the agent passed an item.id thinking it was the asset id.
+ */
+function renderItemIdTag(item: TimelineItem): string {
+  if (item.mediaId && (item.type === 'video' || item.type === 'audio' || item.type === 'image')) {
+    return `media:${item.mediaId}`
+  }
+  return `item:${item.id}`
 }
 
 function renderItemBody(item: TimelineItem, snapshot: TimelineAgentSnapshot): string {
@@ -143,7 +157,7 @@ function renderSelectionLine(snapshot: TimelineAgentSnapshot): string | null {
   const display = renderItemBody(first, snapshot)
   const more =
     snapshot.selection.itemIds.length > 1 ? ` (+${snapshot.selection.itemIds.length - 1} more)` : ''
-  return `Selected: ${first.id} ${display}${more}`
+  return `Selected: ${renderItemIdTag(first)} ${display}${more}`
 }
 
 function renderPlayheadLine(snapshot: TimelineAgentSnapshot): string {

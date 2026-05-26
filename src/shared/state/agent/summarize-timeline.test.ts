@@ -158,7 +158,7 @@ describe('summarizeTimelineForAgent', () => {
         mediaById: { m1: { fileName: 'intro.mp4' } },
       }),
     )
-    expect(output).toContain('  V1  [00:00-00:12 intro.mp4 (clip_a)]')
+    expect(output).toContain('  V1  [00:00-00:12 intro.mp4 (media:m1)]')
     expect(output).toContain('Timeline — 30 fps, 1920x1080, 00:12 total')
   })
 
@@ -166,7 +166,7 @@ describe('summarizeTimelineForAgent', () => {
     const tracks = [track('t1', 'V1', 0)]
     const items = [videoItem('clip_a', 't1', 0, 30, { mediaId: 'm1', label: 'fallback.mp4' })]
     const output = summarizeTimelineForAgent(baseSnapshot({ tracks, items }))
-    expect(output).toContain('fallback.mp4 (clip_a)')
+    expect(output).toContain('fallback.mp4 (media:m1)')
   })
 
   it('orders tracks ascending by order and renders multiple items per track sorted by `from`', () => {
@@ -190,10 +190,10 @@ describe('summarizeTimelineForAgent', () => {
     const output = summarizeTimelineForAgent(baseSnapshot({ tracks, items, mediaById }))
     const lines = output.split('\n')
     expect(lines[1]).toBe(
-      '  V2  [00:00-00:12 intro.mp4 (clip_a8)] [00:18-00:45 scene1.mp4 (clip_b3)]',
+      '  V2  [00:00-00:12 intro.mp4 (media:m_intro)] [00:18-00:45 scene1.mp4 (media:m_scene)]',
     )
-    expect(lines[2]).toBe('  V1  [00:00-04:32 background.mp4 (clip_c1)]')
-    expect(lines[3]).toBe('  A1  [00:00-04:32 voiceover.wav (clip_d2)]')
+    expect(lines[2]).toBe('  V1  [00:00-04:32 background.mp4 (media:m_bg)]')
+    expect(lines[3]).toBe('  A1  [00:00-04:32 voiceover.wav (media:m_vo)]')
   })
 
   it('skips group tracks and shows empty tracks as "(empty)"', () => {
@@ -215,28 +215,28 @@ describe('summarizeTimelineForAgent', () => {
     const output = summarizeTimelineForAgent(
       baseSnapshot({ tracks, items, mediaById: { m1: { fileName: 'a.mp4' } } }),
     )
-    expect(output).toContain('(clip_a, muted, hidden, locked)')
+    expect(output).toContain('(media:m1, muted, hidden, locked)')
   })
 
   it('renders subtitle items as "N segments"', () => {
     const tracks = [track('ts', 'Captions', 0)]
     const items = [subtitleItem('clip_e7', 'ts', 540, 7560, 12)]
     const output = summarizeTimelineForAgent(baseSnapshot({ tracks, items }))
-    expect(output).toContain('  Captions  [00:18-04:30 12 segments (clip_e7)]')
+    expect(output).toContain('  Captions  [00:18-04:30 12 segments (item:clip_e7)]')
   })
 
   it('renders composition items as comp:"label"', () => {
     const tracks = [track('t1', 'V1', 0)]
     const items = [compositionItem('clip_c', 't1', 0, 60, 'Title Sequence')]
     const output = summarizeTimelineForAgent(baseSnapshot({ tracks, items }))
-    expect(output).toContain('comp:"Title Sequence" (clip_c)')
+    expect(output).toContain('comp:"Title Sequence" (item:clip_c)')
   })
 
   it('renders text items quoted', () => {
     const tracks = [track('t1', 'V1', 0)]
     const items = [textItem('clip_t', 't1', 0, 30, 'Hello world')]
     const output = summarizeTimelineForAgent(baseSnapshot({ tracks, items }))
-    expect(output).toContain('"Hello world" (clip_t)')
+    expect(output).toContain('"Hello world" (item:clip_t)')
   })
 
   it('shows selection of a single item', () => {
@@ -250,7 +250,7 @@ describe('summarizeTimelineForAgent', () => {
         selection: { itemIds: ['clip_a'] },
       }),
     )
-    expect(output).toContain('Selected: clip_a intro.mp4')
+    expect(output).toContain('Selected: media:m1 intro.mp4')
   })
 
   it('shows selection of multiple items with a more-count suffix', () => {
@@ -268,7 +268,7 @@ describe('summarizeTimelineForAgent', () => {
         selection: { itemIds: ['clip_a', 'clip_b', 'clip_c'] },
       }),
     )
-    expect(output).toContain('Selected: clip_a x.mp4 (+2 more)')
+    expect(output).toContain('Selected: media:m1 x.mp4 (+2 more)')
   })
 
   it('annotates the active sub-composition in the header', () => {
@@ -310,7 +310,7 @@ describe('summarizeTimelineForAgent', () => {
     const longText = 'a'.repeat(200)
     const items = [textItem('clip_t', 't1', 0, 30, longText)]
     const output = summarizeTimelineForAgent(baseSnapshot({ tracks, items }))
-    expect(output).toMatch(/"a{39}…" \(clip_t\)/)
+    expect(output).toMatch(/"a{39}…" \(item:clip_t\)/)
   })
 
   it('collapses overflow items with [+N more]', () => {

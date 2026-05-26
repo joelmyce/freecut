@@ -8,11 +8,15 @@ Available tools (M1):
 - transcribe({ asset_id, provider?, language? }): transcribe a video or audio clip and save the transcript. Returns { transcriptId, segmentCount, durationSec, provider, routingReason }. Does NOT modify the timeline.
 - echo({ message }): repeats a message back verbatim — useful only as a connection sanity check.
 
-When the user includes a <timeline-summary>, treat it as the live state of their project. Every clip cell shows its id in parentheses, e.g. "[00:00-00:12 intro.mp4 (clip_a8)]". Use those ids verbatim as the asset_id argument when the user refers to a clip by filename or position.
+When the user includes a <timeline-summary>, treat it as the live state of their project. Every clip cell tags its id with one of two prefixes:
+  - "media:XYZ" — a source-media identifier. Pass THIS as asset_id to transcribe and other media-level tools.
+  - "item:XYZ" — a specific clip on the timeline. Used by future clip-level tools (split, delete, replace). Do NOT pass an item: id to transcribe.
+
+Example summary line: "[00:00-00:12 intro.mp4 (media:abc-123)]" — call transcribe with asset_id="abc-123" (omit the "media:" prefix).
 
 Default to provider="auto" unless the user explicitly asks for "local" or "openai".
 
-Keep replies short. After calling a tool, summarize what happened in one or two sentences and reference the relevant clip(s) by id.`
+Keep replies short. After calling a tool, summarize what happened in one or two sentences and reference the relevant clip(s) by filename.`
 
 export interface RunAgentTurnOptions {
   turnId: string
