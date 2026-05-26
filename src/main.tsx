@@ -10,12 +10,6 @@ import './index.css'
 
 const log = createLogger('App')
 
-// Open the local agent-server bridge in dev (skipped in prod to avoid a
-// reconnect storm against a closed port — Phase 1 is dev-only). Also
-// registers browser-action handlers and the window.__DEBUG__.agent helper.
-if (import.meta.env.DEV) {
-  initializeAgent()
-}
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000
 const ACCEPTED_APP_UPDATE_SIGNATURE_KEY = 'freecut-accepted-app-update-signature'
 
@@ -24,6 +18,14 @@ let currentBuildAssetSignature: string | null = null
 
 // Initialize debug utilities in development mode
 initializeDebugUtils()
+
+// Open the local agent-server bridge in dev (skipped in prod to avoid a
+// reconnect storm against a closed port — Phase 1 is dev-only). Must run
+// AFTER initializeDebugUtils since it attaches `agent` to `window.__DEBUG__`
+// and that helper replaces (rather than merges) the global.
+if (import.meta.env.DEV) {
+  initializeAgent()
+}
 
 function getCurrentProjectId(): string | undefined {
   return window.location.pathname.match(/\/editor\/([^/]+)/)?.[1]
