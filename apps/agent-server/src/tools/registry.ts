@@ -1,6 +1,7 @@
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
 import { echoTool } from './_stub.ts'
+import { createAddSubtitlesTool } from './add-subtitles.ts'
 import { createTranscribeTool } from './transcribe.ts'
 
 export const TOOL_MCP_SERVER_NAME = 'freecut'
@@ -15,7 +16,11 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
   return createSdkMcpServer({
     name: TOOL_MCP_SERVER_NAME,
     version: '0.0.0',
-    tools: [echoTool, createTranscribeTool(options)],
+    tools: [
+      echoTool,
+      createTranscribeTool(options),
+      createAddSubtitlesTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
+    ],
   })
 }
 
@@ -26,4 +31,5 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
 export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__echo`,
   `mcp__${TOOL_MCP_SERVER_NAME}__transcribe`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__add_subtitles`,
 ]

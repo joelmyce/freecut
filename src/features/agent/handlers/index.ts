@@ -1,3 +1,4 @@
+import { addSubtitlesHandler } from './add-subtitles'
 import { BrowserActionRegistry } from './registry'
 import { readTranscribableAudioHandler } from './read-transcribable-audio'
 import { saveTranscriptHandler } from './save-transcript'
@@ -11,5 +12,6 @@ export function createDefaultBrowserActionRegistry(): BrowserActionRegistry {
   registry.register('transcribe-local', transcribeLocalHandler)
   registry.register('read-transcribable-audio', readTranscribableAudioHandler)
   registry.register('save-transcript', saveTranscriptHandler)
+  registry.register('add-subtitles', addSubtitlesHandler)
   return registry
 }
