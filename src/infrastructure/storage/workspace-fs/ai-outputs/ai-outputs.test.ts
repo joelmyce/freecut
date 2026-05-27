@@ -143,4 +143,29 @@ describe('workspace-fs ai-outputs', () => {
     const ids = await getMediaIdsWithAiOutput([], 'captions')
     expect(ids.size).toBe(0)
   })
+
+  it('round-trips a generation envelope', async () => {
+    setWorkspaceRoot(asHandle(createRoot()))
+    const written = await writeAiOutput({
+      mediaId: 'gen1',
+      kind: 'generation',
+      service: 'fal',
+      model: 'fal-ai/luma-dream-machine',
+      params: { aspect: '16:9', seed: 42 },
+      data: {
+        outputKind: 'video',
+        prompt: 'city night skyline',
+        sourceUrl: 'https://fal.media/files/abc.mp4',
+        cost: { amount: 0.4, currency: 'USD' },
+        durationSec: 6,
+      },
+    })
+    expect(written.kind).toBe('generation')
+
+    const loaded = await readAiOutput('gen1', 'generation')
+    expect(loaded?.service).toBe('fal')
+    expect(loaded?.data.outputKind).toBe('video')
+    expect(loaded?.data.prompt).toBe('city night skyline')
+    expect(loaded?.data.cost?.amount).toBe(0.4)
+  })
 })

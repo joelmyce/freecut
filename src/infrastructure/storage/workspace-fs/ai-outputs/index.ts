@@ -6,6 +6,7 @@ export type {
   CaptionsPayload,
   ScenesPayload,
   SceneCutPayload,
+  GenerationPayload,
 } from './types'
 export { AI_OUTPUT_SCHEMA_VERSION, transcriptFromLegacy, transcriptToLegacy } from './types'
 export {

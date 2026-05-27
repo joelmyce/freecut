@@ -21,7 +21,7 @@ import type {
  * 3. (Optional) Add a thin wrapper in `workspace-fs/` that calls
  *    `readAiOutput/writeAiOutput` with that kind.
  */
-export type AiOutputKind = 'transcript' | 'captions' | 'scenes'
+export type AiOutputKind = 'transcript' | 'captions' | 'scenes' | 'generation'
 
 /**
  * Typed payload per kind. Matches the `data` field on `AiOutput<T>`.
@@ -31,6 +31,7 @@ export interface AiOutputPayloads {
   transcript: TranscriptPayload
   captions: CaptionsPayload
   scenes: ScenesPayload
+  generation: GenerationPayload
 }
 
 /**
@@ -107,6 +108,25 @@ export interface ScenesPayload {
   verificationModel?: string
   fps: number
   cuts: SceneCutPayload[]
+}
+
+/**
+ * Payload for AI-generated media (b-roll video, future image/audio gen).
+ * The envelope's `service` field holds the provider id (`fal`, `kie`, …);
+ * `model` holds the specific model id; and `params` holds the generation
+ * inputs (aspect ratio, seed, etc.). This payload captures the parts that
+ * don't fit cleanly into the envelope: the human-readable prompt, the
+ * remote source URL for provenance, and dollar cost when known.
+ *
+ * `outputKind` distinguishes video/image/audio so future cost dashboards
+ * and recovery flows (`replace_clip_with_regeneration`) can branch on it.
+ */
+export interface GenerationPayload {
+  outputKind: 'video' | 'image' | 'audio'
+  prompt: string
+  sourceUrl?: string
+  cost?: { amount: number; currency: 'USD' }
+  durationSec?: number
 }
 
 /* ───────────────── Conversions ───────────────── */
