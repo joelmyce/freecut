@@ -5,9 +5,15 @@
 (local Whisper + OpenAI), `add_subtitles` (with auto-chain from
 `transcribe`), and `generate_broll` (fal video provider with placeholder
 → swap pattern) all working end-to-end on `feat/ai-agent`. **M4
-(`replace_clip_with_regeneration` + `cut_silence`) is next.** See
+code shipped 2026-05-26 — `replace_clip_with_regeneration`,
+`cut_silence`, transcript-grounded prompts retrofit, chat-panel UX
+upgrades (chips + pill picker + UI flags), opt-in Gemini Flash
+transcription provider. Uncommitted pending end-to-end verification
+(workspace-gate blocks headless visual tests).** **M5 (`generate_voiceover`)
+is next once M4 verification lands.** See
 `~/.claude/projects/-Users-joelm-Documents-Antigravity-FreeCut/memory/ai-video-editor-status.md`
-for the live commit log and bookkeeping debts.
+for the live commit log, bookkeeping debts, and the M4 verification
+checklist.
 
 Generated from the build brief + `docs/ARCHITECTURE.md` §5–§6 after Phase 0
 reconnaissance.
@@ -64,7 +70,14 @@ B-roll replace the placeholder ~30s later.
   transitions, keyframes) renders everything on-timeline. Sibling
   projects that wire Remotion + a CLI render farm are solving a
   problem we don't have.
-- Multi-agent / parallel tool execution
+- Multi-agent / parallel tool execution. **Architecture commitment:**
+  one Claude Sonnet orchestrator with all tools; specialized providers
+  (Gemini, fal, ElevenLabs, Hyperframe) are *capabilities* the
+  orchestrator reaches for as MCP tools, never co-agents the user
+  routes to. HyperEdit's sibling-agents-in-tabs pattern (Director /
+  Picasso / DiCaprio) is rejected — forcing the user to know which
+  agent does what is the wrong abstraction. See
+  [AI-EDITOR-VISION.md](AI-EDITOR-VISION.md) §2.
 - Settings UI for provider selection (use `.env` for v1)
 - Production packaging / single-binary distribution
 - Tool failure recovery beyond "report error to chat and stop"
@@ -73,6 +86,13 @@ B-roll replace the placeholder ~30s later.
   invocations directly. Documented here because at least one sibling
   AI editor (HyperEdit) does exactly this and it's an RCE surface we
   decline.
+- **Skills (Claude Agent SDK skill registration)** — deferred to
+  M7+ once workflows are stable. Architecture today already supports
+  it: the agent server uses the Claude Agent SDK which loads skills
+  via the same MCP machinery as tools. Tools we ship now must remain
+  composable into future skills — see [AI-EDITOR-VISION.md
+  §13](AI-EDITOR-VISION.md) for the two architectural constraints
+  (side-effect annotation, separate read/write across the bridge).
 
 ---
 
@@ -457,70 +477,119 @@ message; user can either remove the placeholder or retry via the chat.
 
 Shorter — reuse patterns from §3–§5.
 
-### 6.1 `replace_clip_with_regeneration`
+### 6.1 `replace_clip_with_regeneration` ✅ **shipped 2026-05-26**
 
-**Signature:**
+**Signature (as shipped):**
 ```
-replace_clip_with_regeneration(clip_id, new_prompt?, options?) → { clipId, providerUsed, cost }
-```
-
-**Reuses:** generate_broll's placeholder→insert pattern.
-
-**New bit:** reads `GenerationOutput` from
-`media/{originalMediaId}/cache/ai/generation.json` for original prompt/model
-context. If `new_prompt` is omitted, regenerates with the original. If the
-clip wasn't generated (no metadata file), error with a clear message.
-
-**Design decision: placeholder→swap (default) vs in-place file overwrite.**
-HyperEdit (`scripts/local-ffmpeg-server.js:handleEditAnimation`) ships an
-in-place overwrite — same `assetId`, same on-disk filename, browser
-cache-busts via `?v=Date.now()`. Tempting because no timeline plumbing
-changes. We're sticking with the **placeholder→swap** pattern for v1
-because it (a) matches M3 so the undo semantics stay consistent (single
-Ctrl+Z rewinds past the placeholder), (b) avoids cache-invalidation
-surface area on `sourceFps`/`sourceDuration`/waveform/reverse-conform
-caches, and (c) lets the user keep seeing the existing clip while the
-new one is rendering. Revisit if M4 verification shows the swap UX
-feels heavy for in-place replacement.
-
-**Transcript grounding (port from HyperEdit):** when the original clip
-has a transcript saved (or when the regen target overlaps a transcript
-on the timeline), the tool prepends the transcript segment for the
-target time range to the model prompt as `VIDEO CONTEXT`. Best-effort —
-not a precondition, fallback to plain prompt if no transcript exists.
-Same retrofit lands on `generate_broll` (§5).
-
-**Acceptance:** user selects a generated clip → says `"replace this with a
-more dramatic version"` → placeholder swaps with new generation in place;
-transcript context (if any) is visible in the agent-server log; single
-Ctrl+Z restores the original clip.
-
-### 6.2 `cut_silence`
-
-**Signature:**
-```
-cut_silence(clip_id, threshold_db?: number = -40, min_silence_sec?: number = 0.5)
-  → { silenceRegionCount, removedDurationSec }
+replace_clip_with_regeneration(clip_id, new_prompt?, provider?, model?, aspect?)
+  → { clipId, mediaId, trackId, providerUsed, modelUsed, cost,
+      durationSec, routingReason, usedTranscriptContext,
+      reusedOriginalPrompt }
 ```
 
-**Pure local — no external API.** Tests the "local processing tool" pattern.
+**Built at:**
+- Server tool: [`apps/agent-server/src/tools/replace-clip-with-regeneration.ts`](../apps/agent-server/src/tools/replace-clip-with-regeneration.ts)
+- Browser handlers: [`src/features/agent/handlers/regenerate-clip.ts`](../src/features/agent/handlers/regenerate-clip.ts)
+  (`read-clip-for-regen` + `replace-clip-with-placeholder`)
+- Browser action: `replaceClipWithPlaceholder()` in
+  [`src/features/timeline/stores/actions/ai-generation-actions.ts`](../src/features/timeline/stores/actions/ai-generation-actions.ts)
 
-**Server-side flow:**
+**Reuses:** generate_broll's placeholder→insert pattern verbatim — the
+swap step calls the *same* `swap-generation-placeholder-with-url`
+handler M3 ships. Only the "insert placeholder" half differs (it
+removes an existing clip first instead of creating a new track).
 
-1. Request decoded audio samples from browser (browser already has decoded
-   preview audio cached at `media/{id}/cache/preview-audio.wav` for
-   non-native codecs)
-2. RMS analysis on the server (or in a browser Worker if simpler) → list
-   of silence regions in seconds
-3. Convert to frame splits + removals
-4. Send `mutate-timeline: 'cut-silence-regions'` with the split plan
-5. Browser executes all splits + removes in one `execute()` for clean undo
-6. Subtitle/caption clips on the same clip get cue-rebased automatically
-   (existing `_splitItem` for subtitles already partitions cues — confirmed
-   in items-store.ts)
+**New bits:**
+1. Reads the clip's `media/{id}/cache/ai/generation.json` envelope via
+   `readAiOutput()`. If `new_prompt` is omitted, regenerates with the
+   recovered original prompt + model. If the clip wasn't AI-generated
+   (no envelope file) **and** no `new_prompt` was supplied, errors
+   *before* any timeline mutation: `"Clip <id> was not AI-generated …
+   Pass new_prompt explicitly to regenerate it from scratch."`.
+2. Provider preference: explicit `provider:` arg > original
+   `generation.service` (when still available) > 'auto' routing. Model:
+   explicit > original (only when provider matches) > provider default.
+3. `replaceClipWithPlaceholder` captures a pre-mutation snapshot, removes
+   the original clip + its transitions/keyframes, inserts the
+   placeholder in the same track/from/duration. The snapshot lives in
+   the same `pendingSnapshots` map M3 introduced, so the eventual
+   `swapPlaceholderWithMedia` pushes ONE undo entry rewinding past the
+   whole regen.
 
-**Acceptance:** user says `"cut silences over 0.5s in clip foo"` → clip is
-split into N segments with silences removed; transcription/captions
+**Design decision (reaffirmed at ship): placeholder→swap, not in-place
+file overwrite.** HyperEdit
+(`scripts/local-ffmpeg-server.js:handleEditAnimation`) ships an in-place
+overwrite — same `assetId`, same on-disk filename, browser cache-busts
+via `?v=Date.now()`. We stuck with **placeholder→swap** because it
+(a) matches M3 so the undo semantics stay consistent (single Ctrl+Z
+rewinds past the placeholder), (b) avoids cache-invalidation surface
+area on `sourceFps`/`sourceDuration`/waveform/reverse-conform caches,
+and (c) lets the user keep seeing the existing clip while the new one
+is rendering. Verified path-of-implementation: the regen clip lands in
+the media library as a *new* MediaMetadata with its own `aiGenerated`
+badge + `generation.json` — the original is untouched on disk so Ctrl+Z
+restores it without re-import.
+
+**Transcript grounding:** built in by default. The
+`read-clip-for-regen` handler reads the clip's own transcript via
+`getTranscript(mediaId)`, slices segments overlapping the clip's
+source-time window (translating via `sourceFps`), and the server
+prepends them to the prompt via `buildTranscriptContextBlock()` (shared
+helper at [`prompt-grounding.ts`](../apps/agent-server/src/tools/prompt-grounding.ts)).
+Best-effort — `transcriptContext: null` flows through unchanged. Result
+exposes `usedTranscriptContext: boolean` for the agent to quote.
+
+**Tests:** 6 cases at
+[`replace-clip-with-regeneration.test.ts`](../apps/agent-server/src/tools/replace-clip-with-regeneration.test.ts)
+covering: reuse original prompt, non-AI clip error, non-AI clip with
+new_prompt success, transcript grounding, provider failure cleanup,
+abort cleanup.
+
+### 6.2 `cut_silence` ✅ **shipped 2026-05-26**
+
+**Signature (as shipped):**
+```
+cut_silence(clip_id, threshold_db?=-45, min_silence_sec?=0.5, padding_ms?=100)
+  → { clipId, silenceRangeCount, removedDurationSec, splitCount,
+      removedItemCount, thresholdDb, minSilenceSec }
+```
+
+**Pure local — no external API.** First "local processing tool" in the
+agent surface.
+
+**Built at:**
+- Server tool: [`apps/agent-server/src/tools/cut-silence.ts`](../apps/agent-server/src/tools/cut-silence.ts)
+- Browser handler: [`src/features/agent/handlers/cut-silence.ts`](../src/features/agent/handlers/cut-silence.ts)
+
+**Implementation deviation from the original plan:** the original §6.2
+proposed pulling decoded audio samples *through* the bridge to the
+server for RMS analysis. We did NOT do that. The browser already ships
+the full pipeline as `analyzeSilenceForItems()` (decode + RMS + window)
+and `removeSilenceFromItems()` (multi-split + ripple removal + subtitle
+cue partitioning, all inside one `execute()` undo entry). The bridge
+call would have added a pointless ~tens-of-MB base64 round-trip for
+work the browser was already doing. The shipped handler is a 50-line
+orchestrator that:
+
+1. Validates the clip is video/audio with a `mediaId`
+2. Maps `threshold_db` / `min_silence_sec` / `padding_ms` into
+   `SilenceRemovalSettings` (using `DEFAULT_SILENCE_REMOVAL_SETTINGS` as
+   the baseline)
+3. `await analyzeSilenceForItems([clipId], settings)` → ranges
+4. `removeSilenceFromItems([clipId], rangesByMediaId)` → split + remove
+5. Returns the summary the tool quotes back
+
+Subtitle/caption clips on the same clip auto-rebase because the
+existing `_splitItem` already partitions cues at the cut point — no new
+code needed.
+
+**Defaults shipped at:** `-45 dB` / `500 ms` / `100 ms padding` — pulled
+from `DEFAULT_SILENCE_REMOVAL_SETTINGS` so chat-driven `cut_silence`
+behaves identically to the existing right-click → "Remove silence"
+menu.
+
+**Acceptance:** user says `"cut silences over 0.5s in clip foo"` → clip
+is split into N segments with silences removed; transcription/captions
 remain aligned; one `Ctrl+Z` restores everything.
 
 ### 6.3 `add_lower_third` *(deferred — Hyperframe-dependent)*
@@ -529,8 +598,12 @@ Blocked on Hyperframe API specifics (Q9). Placeholder in the plan so we
 remember to come back. When we know the Hyperframe endpoints, this tool
 likely splits into `add_lower_third`, `add_title_card`, possibly
 `generate_avatar_clip` — all reusing the generate_broll async pattern.
+**Hyperframe is the renderer** for any AI-generated talking-head /
+avatar / lower-third content; we do NOT pull in Remotion or a CLI
+farm. Hyperframe renders, the output drops onto FreeCut's timeline as
+ordinary media (M3 placeholder→swap reused).
 
-### 6.4 `generate_voiceover`
+### 6.4 `generate_voiceover` *(M5)*
 
 **Signature:**
 ```
@@ -548,6 +621,242 @@ audio-item insertion.
 **Acceptance:** user says `"add a voiceover saying 'welcome to the show'
 at the start"` → audio clip appears at 00:00 on an audio track.
 
+### 6.7 `analyze_clip` — Gemini video analysis *(M4.6, NEXT)*
+
+**Signature:**
+```
+analyze_clip(clip_id, focus?: 'visual' | 'mood' | 'audio' | 'all') →
+  {
+    visualDescription: string  // setting, subject, framing
+    mood: string               // emotional tone
+    lighting: string           // golden hour, harsh studio, etc.
+    colorPalette: string[]     // dominant colors
+    cameraMovement: string     // handheld, locked, drift, push-in
+    subject: string            // primary focal subject
+    audioSummary: string       // music, speech, ambience
+    pace: string               // slow contemplative, energetic, etc.
+    suggestedBrollPrompts: string[]  // 3 candidate prompts ready to feed generate_broll
+  }
+```
+
+**Why this is the most important M5+ tool:** transcript-grounded
+prompts ([§6.5.1](#)) tell us what's *said* but not what's *shown*.
+Most b-roll mishaps happen because the model has no idea what the
+surrounding footage looks like (see
+[ai-regen-prompt-modifier-fix.md](../../.claude/projects/-Users-joelm-Documents-Antigravity-FreeCut/memory/ai-regen-prompt-modifier-fix.md)
+for one such mishap). Visual analysis closes that gap.
+
+**Architecture:**
+
+- New capability: `apps/agent-server/src/providers/analysis/`.
+- New provider class: `GeminiVideoAnalysisProvider` mirroring the
+  `GeminiTranscriptionProvider` shape. Multimodal generate API,
+  inline-base64 video bytes (~20MB cap; File API upload deferred
+  until a long-form clip needs it), structured-JSON response schema.
+- New browser handler: `read-clip-video-bytes(clip_id_or_range)` —
+  pulls bytes from the workspace, optionally downsamples / clips to
+  the requested sub-range to fit Gemini's inline cap. Returns base64
+  + `mimeType` + `durationSec`.
+- New MCP tool: `analyze_clip` (server-side), wired into the
+  orchestrator agent. Agent calls this BEFORE `generate_broll` when
+  the user request implies matching existing content ("match the
+  vibe", "fits the music", "feels like what's playing").
+- Update `ProvidersBundle` to include `analysis: ReadonlyArray<VideoAnalysisProvider>`.
+- System prompt update: teach the agent the "match the vibe" routing
+  ("if user asks for b-roll matching content on the timeline → call
+  analyze_clip first → then construct a generate_broll prompt").
+
+**Cost / latency:** ~1-3s per call, fractions of a cent. Cheap enough
+that the agent calls it freely; not so cheap we'd call it on every
+turn.
+
+**Routing exception to §6.5.4:** the §6.5.4 "never auto-route to
+Gemini" rule applies to **transcription only**. For *video analysis*
+there is no local alternative that does temporal + audio + visual
+joint understanding, so Gemini is the de-facto default for the
+analysis capability. This is documented explicitly so future-us
+doesn't relitigate it.
+
+**Acceptance:** user says `"add b-roll between 0:10 and 0:18 that
+matches the vibe"` → agent-server stdout shows `tool-call analyze_clip`
+followed by `tool-call generate_broll` with a rich prompt that
+incorporates the analysis. The rendered b-roll visually matches the
+source clip's mood/lighting/pace.
+
+### 6.8 Hybrid silence detection upgrade *(M4.2-bis)*
+
+Pure-RMS silence detection occasionally clips trailing sibilants and
+leading consonants because it cuts at energy threshold without
+knowing where words actually end. HyperEdit pairs `silencedetect`
+with Whisper word boundaries and gets cleaner cuts; we should port.
+
+**Change:** inside
+[`analyzeSilenceForItems`](../src/features/timeline/utils/silence-removal-preview.ts)
+or
+[`removeSilenceFromItems`](../src/features/timeline/stores/actions/edit/range-removal-actions.ts),
+after detecting silent ranges, look up the saved transcript's word
+timestamps and snap each range edge to the nearest word boundary
+within ~150ms. If no transcript exists for the media, fall back to
+the current pure-RMS behavior.
+
+**No new tools, no new dependencies — pure quality upgrade.** Bundle
+with M4.6 since both touch the analysis / transcript surface.
+
+**Acceptance:** silence cuts no longer amputate the trailing "s" of
+"yes" or the leading "n" of "now". Visible in waveform display
+zoomed to the cut.
+
+### 6.9 Image-then-animate b-roll path *(M4.7)*
+
+Second b-roll generation path alongside the existing text-to-video
+pipeline. Generates a still first, lets the user (or the agent) iterate
+on the still cheaply, then animates the approved still via image-to-
+video.
+
+**Two new tools:**
+
+- `generate_image(prompt, aspect?, model?)` — fal `openai/gpt-image-2`
+  by default; returns the image as a media-library asset. Used standalone
+  (drop a still on the timeline) and as the first half of image-then-
+  animate.
+- `animate_image(media_id, prompt?, duration_sec?)` — fal Kling 1.5 pro
+  image-to-video. Takes a previously generated still + an optional
+  motion prompt, produces an animated clip via the M3 placeholder→swap
+  pattern.
+
+**Why two paths:**
+
+- Text-to-video (current `generate_broll`): one call, fast, but the
+  model picks the composition. Less consistency across multiple
+  b-roll clips.
+- Image-then-animate: see the still first, regenerate cheaply if
+  composition is wrong, only spend on animation once the framing is
+  approved. Better visual consistency, lower cost per accepted clip.
+
+Naturally pairs with the **concept-card approval flow** (M5.2): the
+still IS the concept card.
+
+**Acceptance:** user says `"generate an image of a coffee shop and
+animate it"` → image appears on the timeline → after approval, the
+animated version swaps in.
+
+### 6.10 GIF search + insert *(M4.8)*
+
+`add_gif(query, target_seconds?, track_id?)` — searches Giphy via
+their REST API (`/v1/gifs/search`), shows the top results in chat,
+downloads the picked one as a workspace asset, inserts on the timeline
+as an image item with autoplay enabled.
+
+**Why now:** small, cheap, agent-server-side wrapper. Plus the chat
+UX gets a new dimension — "react gif at the punchline" is a real
+editing workflow.
+
+**Acceptance:** user says `"add an excited reaction gif at 0:42"` →
+gif lands at 0:42 on a new image track.
+
+### 6.11 Karaoke-style captions *(M5.1)*
+
+Per-word caption highlighting that animates each word at the
+millisecond it's spoken. HyperEdit does this with pure CSS color
+transitions; we'll do the same via FreeCut's text spans + the word-
+level timestamps Whisper already produces.
+
+**Changes:**
+
+- Extend `SubtitleSegmentItem.cues[]` to optionally carry `words:
+  Array<{ text, start, end }>` (already in `MediaTranscript.segments`,
+  just thread through `insertTranscriptAsCaptions`).
+- Add a caption-style flag (`'karaoke' | 'standard'`) to the cue or
+  the parent segment item.
+- Renderer reads `currentFrame` → derives `currentTimeInCueSec` →
+  picks the word whose `[start, end]` covers it → applies the
+  highlight color (configurable, default `#FFD700`) to that word's
+  span.
+- New tool: `karaoke_captions(asset_id, highlight_color?, replace_existing?)`
+  — runs the same `add_subtitles` flow but flips the style to karaoke.
+
+**Effort:** ~half-day. No new models, no remote calls. All the data
+we need is already in the transcript envelope.
+
+**Acceptance:** captions appear with one word highlighted yellow at
+any given playhead frame; the highlight advances word-by-word as
+playback runs.
+
+### 6.12 Concept-card approval flow *(M5.2)*
+
+Spend-confirmation gate for expensive renders.
+
+**Pattern:** tools that exceed a cost/time threshold (configurable
+per-tool) return a `pending-confirmation` envelope instead of
+executing. Chat panel renders a card with Approve / Reject / Edit
+buttons. Approve triggers the actual render with the same inputs.
+
+**Concrete consumers:**
+
+- `animate_image` (M4.7) — the still IS the card.
+- Future Hyperframe avatar / talking-head tools — show script preview
+  + voice sample.
+- Phase 2 storyboard scenes — each scene card IS a concept card.
+
+**Reserved bridge message types** (add to `apps/agent-server/src/bridge/protocol.ts`):
+- Server→Browser: `pending-confirmation { callId, title, summary, costEstimate, approveAction, rejectAction }`
+- Browser→Server: `confirmation-response { callId, decision: 'approve' | 'reject' | 'edit', edits?: Record<string, unknown> }`
+
+**Acceptance:** a tool flagged as expensive shows a card; clicking
+Approve runs the render; clicking Reject cancels the operation
+without timeline mutation.
+
+### 6.13 Smart editing decisions *(M6 — multiple tools)*
+
+Phase 1's last big push: tools that don't just *execute* user
+instructions but *make editing decisions*. Each composes M4.6's
+`analyze_clip` + the transcript + the timeline state.
+
+- `detect_chapters(asset_id?, granularity?)` — Gemini segments the
+  transcript/video into chapters; drops timeline markers. Composes
+  `analyze_clip` + transcript.
+- `find_moment(query)` — "when does the speaker mention pricing?" →
+  returns a timestamp. Single Gemini call over the transcript +
+  optional video frames.
+- `suggest_trims(clip_id)` — "this clip is too long" → analyzes
+  visually-redundant or low-content stretches, proposes 1-5 trim
+  ranges with rationale. User approves before any cut.
+- `add_motion_graphic(template, content, target_seconds)` — composes
+  FreeCut text + shape primitives into pre-defined templates (lower
+  third, title card, animated counter, etc.). NO Remotion; the
+  templates are pure FreeCut composition definitions stored in
+  `apps/agent-server/src/templates/`.
+
+Each tool is itself a candidate to graduate into a skill (M7) once it
+proves stable.
+
+### 6.14 Skills graduation *(M7+ — ongoing)*
+
+See [AI-EDITOR-VISION.md §13](AI-EDITOR-VISION.md) for the full
+explanation. Quick summary:
+
+- **Tools** are primitives (one operation, atomic).
+- **Skills** are stable multi-tool workflows packaged behind a single
+  entry point so the agent's tool list stays manageable.
+- Reserved location: `apps/agent-server/src/skills/` (empty until
+  M7).
+- First candidates: `match_vibe_broll`, `karaoke_caption_pass`,
+  `full_silence_cut`, `talking_head_intro`.
+
+**Two architecture constraints we're applying NOW so M7 doesn't
+require retrofitting:**
+
+1. **Side-effect annotation on tools.** Add `sideEffects: 'read' |
+   'mutate'` to every tool's metadata when convenient (next time a
+   tool is touched). Skills need this to compose safely.
+2. **Separate read from write across the bridge.** Don't combine
+   "fetch state" + "mutate state" in a single browser action. The
+   M4.1 split between `read-clip-for-regen` (read-only) and
+   `replace-clip-with-placeholder` (mutating) is the pattern; keep
+   it for future tools.
+
+No code changes today; just constraints to apply going forward.
+
 ### 6.5 Cross-pollinated patterns (HyperEdit analysis, 2026-05-26)
 
 After M3 shipped we did a deep read of the sibling HyperEdit / Mocha
@@ -555,10 +864,23 @@ project. Five patterns are worth porting; they land alongside M4 rather
 than as a standalone milestone because each is small and the bundle is
 synergistic.
 
-**6.5.1 Transcript-grounded prompts** *(retrofit to §5, integral to §6.1)*
+**6.5.1 Transcript-grounded prompts** ✅ **shipped 2026-05-26** *(retrofit
+to §5, integral to §6.1)*
 
-When a transcript exists for the requested time range, generation
-tools prepend the segment to the model prompt as:
+Built at:
+- Shared helper: [`apps/agent-server/src/tools/prompt-grounding.ts`](../apps/agent-server/src/tools/prompt-grounding.ts) — `buildTranscriptContextBlock(ctx)` returns the verbatim block.
+- For `generate_broll`: new browser handler
+  [`read-transcript-context-for-range.ts`](../src/features/agent/handlers/transcript-context.ts)
+  iterates clips overlapping the requested window, translates each
+  clip's source-time window via its `sourceFps`, slices overlapping
+  segments, returns concatenated text. The tool prepends and exposes
+  `usedTranscriptContext: boolean` in the result.
+- For `replace_clip_with_regeneration`: bundled into
+  `read-clip-for-regen` so the clip + its transcript come back in one
+  round-trip.
+
+When a transcript exists for the relevant range, generation tools
+prepend the segment to the model prompt as:
 
 ```
 VIDEO CONTEXT (from the transcript):
@@ -567,41 +889,62 @@ This segment is from {start}s to {end}s.
 IMPORTANT: Use specific terms, concepts, and themes from this context.
 ```
 
-If the user didn't give a time range, the analysis provider (Whisper
-default, or Gemini when explicitly requested — see 6.5.4) is asked to
-*pick* the most relevant segment from the transcript first.
+Best-effort: silent fallback to plain prompt when nothing overlaps; non-
+fatal even if the bridge call fails (logged to stderr, generation
+continues).
 
-*Effort:* trivial. ~30 lines in `generate-broll.ts` and the new
-`replace-clip-with-regeneration.ts`. Best-effort — skip silently if no
-transcript exists. *Acceptance:* agent-server log shows the
-`VIDEO CONTEXT` block in the outbound prompt when a transcript is
-saved for the clip.
+*Deferred:* "ask analysis provider to *pick* the most relevant segment
+when the user didn't give a time range" — currently `generate_broll`
+requires `start_seconds`/`end_seconds`, so no time-range-free path
+exists yet. Wire when a real consumer needs it (probably alongside an
+"add b-roll wherever it fits" tool in Phase 2 or M6).
 
-**6.5.2 Chat panel UX additions**
+**6.5.2 Chat panel UX additions** ✅ **shipped 2026-05-26**
 
-Three small additions to `src/features/agent/chat-panel/`:
+Three additions to `src/features/agent/components/`:
 
-1. **Suggestion chips above the input.** ~12 starter prompts seeded
-   from our actual tool set: "Add captions", "Cut silences over 0.5s",
-   "Add B-roll between 0:12 and 0:18", "Regenerate this clip". Click
-   to populate the textarea. Lowers cold-start cost.
+1. **Suggestion chips above the input.** Built at
+   [`suggestion-chips.tsx`](../src/features/agent/components/suggestion-chips.tsx).
+   8 starter prompts seeded from the live tool set ("Add captions",
+   "Cut silences", "B-roll 0:12–0:18", "Regenerate this clip",
+   "Transcribe", "Transcribe (Gemini)", "B-roll under this", "More
+   dramatic regen"). Click populates the textarea without auto-sending
+   so the user can tweak.
 
-2. **Reference / range pill picker below the input.** Tiny popover to
-   attach a `[Clip: foo.mp4 on V1 at 0:00]` reference or a `[Time
-   Range: 0:12-0:18]` scope. Pills compile to bracket-tagged context
-   lines prepended to the user's prompt. Data already lives in our
-   selection + timeline stores; only UI work.
+2. **Reference / range pill picker below the input.** Built at
+   [`reference-pill-picker.tsx`](../src/features/agent/components/reference-pill-picker.tsx)
+   with shared compile helper at
+   [`reference-pill-utils.ts`](../src/features/agent/components/reference-pill-utils.ts).
+   Radix popover with three sources: **Selected clip** (reads
+   `useSelectionStore` + `useItemsStore` + `useTimelineSettingsStore`),
+   **In/Out range** (reads `useMarkersStore`), and **±N seconds around
+   playhead** (`±2s` / `±5s` / `±10s` buttons reading
+   `usePlaybackStore`). Pills compile via `compilePillContext()` to
+   `[Clip: foo on V1 at 0:00 (item:XYZ)]` or `[Time Range: 0:12–0:18]`
+   bracket lines prepended to the user's text by `chat-input.tsx`.
+   *Note:* `compilePillContext` and friends live in a separate
+   `reference-pill-utils.ts` so the picker module stays
+   "components-only" for React Fast Refresh.
 
-3. **UI-state flags appended to `summarizeTimelineForAgent()`.** A
-   small block at the bottom of the summary carrying
-   `selectedClipIsAiGenerated`, `playheadInsideClipId`,
-   `editTabFocusedItemId` (when we add an edit tab). Lets Claude infer
-   "this clip" / "right here" without a separate tool call.
+3. **UI-state flags appended to `summarizeTimelineForAgent()`.**
+   Snapshot type extended in
+   [`summarize-timeline.ts`](../src/shared/state/agent/summarize-timeline.ts)
+   with optional `uiFlags: { playheadInsideClipId, selectedClipIsAiGenerated }`.
+   Computed in
+   [`timeline-snapshot.ts`](../src/features/agent/timeline-snapshot.ts):
+   `playheadInsideClipId` finds the first non-shape/non-adjustment item
+   covering the current frame; `selectedClipIsAiGenerated` checks the
+   first selected item's media for an `aiGenerated` envelope. Renders
+   as a `Context flags: …` line at the bottom of the summary.
 
-*Effort:* one to two days total, can ship incrementally before or
-alongside M4. *Acceptance:* chip click populates the input; reference
-pill makes "regenerate this clip" route deterministically; summary
-shows the new flags.
+System prompt at
+[`agent.ts`](../apps/agent-server/src/agent.ts) updated with the
+disambiguation order: bracket-tagged context lines (from the pill
+picker) > Context flags line > Selected: line > ask.
+
+*Tests:* 3 new cases in
+[`summarize-timeline.test.ts`](../src/shared/state/agent/summarize-timeline.test.ts)
+covering flag render / empty omit / undefined omit.
 
 **6.5.3 Concept-card approval flow** *(scoped for Phase 2 storyboard;
 optional M4-era addition for `generate_broll`)*
@@ -617,57 +960,95 @@ protocol (two tool calls + a `pending-confirmation` bridge message);
 medium for the chat-card UI. *Carry into Phase 2 as the storyboard's
 scene-card data model.*
 
-**6.5.4 Opt-in Gemini Flash analysis provider**
+**6.5.4 Opt-in Gemini Flash analysis provider** ✅ **shipped 2026-05-26
+(transcription only)**
 
 Adds `gemini-3.5-flash` (released 2026-05-19, GA stable — 1M token
 input context, multimodal text/image/video/audio/PDF, 65k token
 output, supports function calling + grounding + structured output)
-as a **third** transcription provider and opens the door for a
-`VideoAnalysisProvider` capability (a new shape inside
-`ProvidersBundle`). Default behavior is unchanged — local Whisper
-for transcription, local LFM for visual captioning, RMS for silence
-detection. Gemini is engaged only when the user says so
-("…using gemini").
+as a **third** transcription provider. Default behavior is unchanged —
+local Whisper for transcription, local LFM for visual captioning,
+RMS for silence detection. Gemini is engaged only when the user
+says so ("…using gemini").
 
-The native video-input support is the real reason this is worth
-wiring up — it means a single `gemini-3.5-flash` call can accept a
-short clip and a question, returning structured analysis. That
-collapses what would otherwise be a transcribe → analyze
-chain for use cases like chapter detection, content summarization,
-and "find the moment where X happens."
+What shipped:
+- [`apps/agent-server/src/providers/transcription/gemini.ts`](../apps/agent-server/src/providers/transcription/gemini.ts)
+  — implements `TranscriptionProvider` against
+  `gemini-3.5-flash`'s multimodal generate API. Sends container bytes
+  inline-base64 (same `read-transcribable-audio` browser action the
+  OpenAI provider uses) and asks for verbose-JSON-equivalent output via
+  `responseMimeType: 'application/json'` + a `responseSchema` matching
+  Whisper's shape. Temperature pinned to `0` so it doesn't paraphrase.
+  Surfaces blocked requests via `promptFeedback.blockReason`.
+- Router update at
+  [`router.ts`](../apps/agent-server/src/providers/transcription/router.ts)
+  — adds `gemini` to `TranscriptionStrategy`; routes it explicitly only;
+  hard-bars Gemini from `auto`, even when it's the only available
+  provider for a long clip (tested).
+- [`transcribe`](../apps/agent-server/src/tools/transcribe.ts) tool now
+  accepts `provider: 'auto' | 'local' | 'openai' | 'gemini'`.
+- Wired into
+  [`apps/agent-server/src/index.ts`](../apps/agent-server/src/index.ts)
+  reading `GEMINI_API_KEY` from `.env`. Provider reports
+  `isAvailable()=false` when the key is missing, which the router uses
+  to error with a `GEMINI_API_KEY`-mentioning hint.
+- System prompt at
+  [`agent.ts`](../apps/agent-server/src/agent.ts) tells the agent the
+  "gemini" route is OPT-IN and auto must stay on local/openai.
+- 5 provider tests + 4 router cases at
+  [`gemini.test.ts`](../apps/agent-server/src/providers/transcription/gemini.test.ts)
+  and
+  [`router.test.ts`](../apps/agent-server/src/providers/transcription/router.test.ts).
 
-Concrete wiring:
+**Audio handling:** sends inline base64 bytes in the request body. Per
+Google's docs, inline audio is capped at ~20MB total request size. For
+longer clips we'd need the File API uploading flow; deferred until we
+see a long-form clip in the wild.
 
-- `apps/agent-server/src/providers/transcription/gemini.ts` —
-  implements `TranscriptionProvider` against `gemini-3.5-flash`'s
-  multimodal API. Sends container bytes (same path as the OpenAI
-  provider) and asks Gemini for verbose-JSON-equivalent output.
-- `apps/agent-server/src/providers/analysis/` — new capability with
-  one provider (`GeminiAnalysisProvider`) implementing methods like
-  `pickRelevantSegment(transcript, prompt)` (used by 6.5.1 when the
-  user didn't specify a time range) and `describeFrameAt(mediaId,
-  seconds)` (future visual-captioning hook). The router throws unless
-  the user explicitly requests `gemini`.
-- `transcribe` tool gains `provider: 'auto' | 'local' | 'openai' | 'gemini'`
-  and threads through to the router.
-- `.env`: `GEMINI_API_KEY`.
+What was **deliberately deferred** (originally listed in this section
+but no consumer needs it yet):
+- `apps/agent-server/src/providers/analysis/` capability with
+  `pickRelevantSegment(transcript, prompt)` and `describeFrameAt(...)`.
+  `generate_broll` always receives an explicit time range
+  (`start_seconds` + `end_seconds` are required), so "pick the best
+  segment" has no live caller. Per CLAUDE.md's "don't design for
+  hypothetical future requirements" rule we'll add this only when a
+  tool actually needs it — likely alongside a future
+  "add b-roll wherever it fits" or `find_moment_where(prompt)` tool.
 
 The key design constraint, stated in scope above: **never route to
 Gemini by default**. The existing local Whisper / OpenAI / LFM paths
 keep being the defaults. Gemini is an opt-in tool the user can reach
-for when they want it. *Effort:* small for the transcription
-provider (mirror OpenAI's); medium when we start using `analysis`
-methods for prompt expansion in 6.5.1. *Acceptance:* `transcribe
-clip_x using gemini` succeeds; `transcribe clip_x` still routes to
-local Whisper.
+for when they want it.
 
-**6.5.5 Director / intent router** *(deferred — revisit at Phase 2)*
+**6.5.5 Director / intent router** *(deferred — revisit between M5 and M6)*
 
-Client-side preflight that restricts the tool set per turn based on
-the user's prompt + selection state, instead of sending all tools
-every time. Cuts context bloat and ambiguity once we have 8–10+
-tools. Not worth the complexity at our current 4-tool scale —
-revisit when M6 or Phase 2 storyboard pushes the count up.
+Client-side or server-side preflight that restricts the tool set the
+agent sees per turn based on the user's prompt + selection state,
+instead of sending all tools every time. Cuts context bloat and
+ambiguity once we have 8–10+ tools.
+
+**Current tool count:** 5 (echo, transcribe, add_subtitles,
+generate_broll, replace_clip_with_regeneration, cut_silence — count
+excludes echo since it's a sanity-check stub).
+
+**After M4.6 + M4.7 + M4.8 + M5 + M5.1 we'll have:** ~12 tools. That's
+the threshold where the intent router stops being premature
+optimization and starts being load-bearing.
+
+**Implementation sketch when we're ready (post-M5.1):**
+
+- Keyword-match pre-filter first (cheap, deterministic; takes inspiration
+  from HyperEdit's `intent-classifier.js` — runs in milliseconds, no LLM
+  call needed for the common cases).
+- Haiku-class LLM fallback for ambiguous prompts.
+- Output: a subset of tool names the main agent is allowed to call
+  this turn. The orchestrator never sees the others.
+- Hosted in `apps/agent-server/src/agent/intent-router.ts`.
+
+Until we hit the ~10-tool threshold this stays deferred. See
+[AI-EDITOR-VISION.md §12.3](AI-EDITOR-VISION.md) for context on how
+the intent router relates to skills (§12.4 / VISION §13).
 
 ### 6.6 Patterns reviewed and rejected
 
@@ -708,9 +1089,17 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M1** | Agent transcribes a clip via chat (both providers) | Short clip → local; long clip → openai; cancellation; transcript file at expected path | ✅ local path verified; OpenAI/cancel paths owed |
 | **M2** | Agent adds subtitles via chat | Captions appear on new track; single undo removes them; replaceExisting works | ✅ done |
 | **M3** | Agent generates and inserts B-roll via chat | Placeholder appears; real clip swaps in; clip lands in Media Library with AI badge; single Ctrl+Z removes the final clip; `generation.json` written | ✅ happy path verified; cancel + failure visuals owed |
-| **M4** | `replace_clip_with_regeneration` + `cut_silence` working, with the cross-pollinated patterns from §6.5 (transcript-grounded prompts retrofit, chat UX upgrades, opt-in Gemini provider) | Regen swaps in place via the placeholder pattern with transcript context visible in logs; silence-cut preserves captions; undo restores; `transcribe clip using gemini` succeeds while plain `transcribe` still routes to Whisper; reference-pill picker in chat resolves "this clip" deterministically | next |
-| **M5** | `generate_voiceover` working | Both Kokoro and ElevenLabs paths; inserts at playhead; correct duration | pending |
-| **M6** | *(deferred)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse M3's generate_broll async pattern with the same transcript-grounding from §6.5.1 | When Hyperframe API docs available; placeholder→swap flow stays identical; lower-thirds compose from FreeCut's GPU text + shapes (no Remotion) | blocked |
+| **M4** | `replace_clip_with_regeneration` + `cut_silence` working, with the cross-pollinated patterns from §6.5 (transcript-grounded prompts retrofit, chat UX upgrades, opt-in Gemini provider) | Regen swaps in place via the placeholder pattern with transcript context visible in logs; silence-cut preserves captions; undo restores; `transcribe clip using gemini` succeeds while plain `transcribe` still routes to Whisper; reference-pill picker in chat resolves "this clip" deterministically | ✅ code shipped 2026-05-26, awaiting user end-to-end verification (workspace-gate blocked headless validation; 84 agent-server + 23 agent-feature tests green + lint/typecheck/boundary checks clean) |
+| **M4.6** | Gemini frame+audio video analysis — "match the vibe" b-roll works without explicit camera/mood prompts | `analyze_clip` returns structured analysis JSON; agent composes a rich prompt from analysis + intent; generated b-roll visually matches the source clip's mood/lighting/pace; cost <$0.05/analysis | next |
+| **M4.2-bis** | Hybrid silence detection — clip silence boundaries to Whisper word edges instead of pure RMS | Same end behavior as M4.2 but cuts feel natural; no clipped trailing sibilants; no impact on the existing tool surface — pure quality upgrade inside `analyzeSilenceForItems` | small upgrade, bundle with M4.6 |
+| **M4.7** | Image-then-animate b-roll path (fal `gpt-image-2` for stills → fal Kling image-to-video for motion) | Still preview before animation; cheaper to iterate; agent can offer "regenerate the still" before paying the animation cost; lays groundwork for concept-card approval | after M4.6 |
+| **M4.8** | GIF search + insert (Giphy) | `add_gif("excited reaction")` searches Giphy, drops the gif on the timeline as a still image with autoplay; one Ctrl+Z removes | small; bundle with M4.7 if time permits |
+| **M5** | `generate_voiceover` working — Kokoro (local) + ElevenLabs (cloud) | Both paths; inserts at playhead on a new audio track; correct duration; voice selection via chat | next after M4.6/M4.7 |
+| **M5.1** | Karaoke-style captions — per-word highlight at the millisecond it's spoken | New `karaoke_captions(asset_id, style?)` tool extends `SubtitleSegmentItem` with word-level highlight rendering; uses Whisper word timestamps we already cache; ~half-day of work | bundle with M5 |
+| **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | M5+ |
+| **M6** | Smart editing decisions — chapter detection, find-the-moment, "this clip is too long" trim suggestions, motion-graphic template insertion | Each tool composes M4.6's `analyze_clip` + transcript + timeline state; all renders use FreeCut primitives (no Remotion); the chat starts to feel like a video editor *deciding*, not just executing | after M5 |
+| **M7** | Skills graduation — package stable multi-tool workflows as Claude Agent SDK skills (see VISION §13) | A workflow becomes a skill when (a) the agent has run it ≥3 times, (b) the composition is deterministic, (c) it can be described in one sentence. First candidates: `match_vibe_broll`, `karaoke_caption_pass`, `full_silence_cut` | after M6, ongoing |
+| **Hyperframe** | *(separate track, blocked)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse the M3 placeholder→swap pattern + M4.6 analysis grounding | When Hyperframe API docs available; placeholder→swap flow stays identical; **for AI-generated talking-head / avatar / lower-third content, Hyperframe is THE renderer** (not Remotion, not a CLI farm). Output drops onto FreeCut's timeline as ordinary media | blocked on API docs |
 
 ---
 
@@ -719,11 +1108,21 @@ weeks per milestone target, faster if the prereqs go cleanly.
 These will be settled during planning of individual milestones, not now:
 
 - **Hyperframe tool surface** — Q9 of `ARCHITECTURE.md`; revisit when API
-  docs in hand
+  docs in hand. Reaffirmed: Hyperframe IS the renderer for AI-generated
+  talking-head / avatar / lower-third content (not Remotion, not a CLI
+  farm). Output drops onto FreeCut's timeline as ordinary media via
+  the M3 placeholder→swap pattern.
 - **Tool failure recovery** — currently "report and stop"; refine when we
   see actual failure modes in the wild
 - **Provider auto-routing thresholds** — 30 min for transcription is a
   guess; tune from real usage
+- **Cost threshold for concept-card approval (M5.2)** — at what
+  dollar/time cost should a generation tool require a confirmation
+  card vs. running straight through? Likely `cost > $0.50` OR
+  `expected duration > 30s`, but tune from real usage.
+- **Intent-router activation threshold** — when does §6.5.5 become
+  load-bearing? Currently set to "at ~10 tools", which lands around
+  M5.1. Revisit then.
 - **Should the chat panel persist conversation history per project?** —
   probably yes (`projects/{id}/chat.json`), but how much context to replay
   on reload is open
@@ -755,9 +1154,46 @@ These will be settled during planning of individual milestones, not now:
   prefixes both child processes' stdio (M0).
 - *API-key location*: single `.env` at repo root, loaded by the agent
   server via `dotenv` from `apps/agent-server` cwd — `OPENAI_API_KEY`,
-  `FAL_API_KEY` etc. live there with no `VITE_` prefix (M1, M3).
+  `FAL_API_KEY`, `GEMINI_API_KEY` etc. live there with no `VITE_` prefix
+  (M1, M3, M4).
 - *Placeholder TimelineItem mechanism*: flagged `ShapeItem` with
   `aiPlaceholder` meta (M3 — see §5).
+
+**Settled during M4 build (recorded here for the audit trail):**
+
+- *cut_silence routing*: orchestrate in browser, not server-side RMS.
+  Original §6.2 plan called for the server to pull audio bytes and run
+  analysis. We don't — the browser already has
+  `analyzeSilenceForItems()` + `removeSilenceFromItems()` and the bridge
+  trip would just relay base64. The handler is now a 50-line
+  orchestrator.
+- *replace_clip_with_regeneration "no prompt" failure*: validate
+  *before* mutating. `read-clip-for-regen` is read-only; the server
+  errors out before calling `replace-clip-with-placeholder` so a bad
+  request leaves the timeline untouched. Decision: nicer than relying
+  on the snapshot+undo to clean up after a half-applied regen.
+- *Pre-mutation cleanup of transitions/keyframes*: `replaceClipWithPlaceholder`
+  strips the original clip's transitions + keyframes inline so the
+  placeholder doesn't inherit them; the snapshot captured *before* the
+  mutation still contains them, so Ctrl+Z restores everything.
+- *AnalysisProvider scaffolding*: deferred. Originally §6.5.4 proposed
+  a `pickRelevantSegment` / `describeFrameAt` capability, but
+  `generate_broll` requires explicit `start_seconds`/`end_seconds`, so
+  there's no live caller yet. Wire it when a future tool needs fuzzy
+  segment picking (e.g. an "add b-roll wherever it fits" tool, or a
+  Hyperframe lower-third tool that wants to know what the speaker is
+  saying at the playhead).
+- *Pill seconds vs frames*: the `ReferencePill` shape carries clip
+  position as `fromSeconds`, not the raw item.from (which is in project
+  frames). The picker converts via `useTimelineSettingsStore.fps` at
+  construction time. Why: the compiled bracket-context line embeds an
+  `mm:ss` timestamp, and bundling fps into every pill would have made
+  the compile helper stateful for no benefit.
+- *Reference pill utils file*: `compilePillContext()` + `formatSec()` +
+  `formatRange()` live in `reference-pill-utils.ts` (not in the picker
+  component), so the picker module stays "components-only" — required
+  for React Fast Refresh to HMR cleanly. Tripped by the lint
+  `only-export-components` rule mid-build.
 
 ---
 
