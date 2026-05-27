@@ -41,6 +41,7 @@ describe('createTranscribeTool', () => {
       transcription: [local, openai],
       videoGeneration: [],
       analysis: [],
+      imageGeneration: [],
     }
     const transcribeSpy = vi.spyOn(local, 'transcribe')
 
@@ -73,6 +74,7 @@ describe('createTranscribeTool', () => {
       transcription: [local, openai],
       videoGeneration: [],
       analysis: [],
+      imageGeneration: [],
     }
     const localSpy = vi.spyOn(local, 'transcribe')
     const openaiSpy = vi.spyOn(openai, 'transcribe')
@@ -95,6 +97,7 @@ describe('createTranscribeTool', () => {
       transcription: [local, openai],
       videoGeneration: [],
       analysis: [],
+      imageGeneration: [],
     }
 
     const toolDef = createTranscribeTool({
@@ -114,7 +117,12 @@ describe('createTranscribeTool', () => {
       captured.push(ctx.signal)
       return { text: '', segments: [], durationSec: 0 }
     })
-    const providers: ProvidersBundle = { transcription: [local], videoGeneration: [], analysis: [] }
+    const providers: ProvidersBundle = {
+      transcription: [local],
+      videoGeneration: [],
+      analysis: [],
+      imageGeneration: [],
+    }
     const controller = new AbortController()
 
     const toolDef = createTranscribeTool({
@@ -133,7 +141,12 @@ describe('createTranscribeTool', () => {
       received = { language: input.language }
       return { text: '', segments: [], durationSec: 0 }
     })
-    const providers: ProvidersBundle = { transcription: [local], videoGeneration: [], analysis: [] }
+    const providers: ProvidersBundle = {
+      transcription: [local],
+      videoGeneration: [],
+      analysis: [],
+      imageGeneration: [],
+    }
 
     const toolDef = createTranscribeTool({
       bridge: mockBridge(),

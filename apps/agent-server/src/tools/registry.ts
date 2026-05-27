@@ -5,6 +5,7 @@ import { createAddSubtitlesTool } from './add-subtitles.ts'
 import { createAnalyzeClipTool } from './analyze-clip.ts'
 import { createCutSilenceTool } from './cut-silence.ts'
 import { createGenerateBrollTool } from './generate-broll.ts'
+import { createGenerateImageTool } from './generate-image.ts'
 import { createReplaceClipWithRegenerationTool } from './replace-clip-with-regeneration.ts'
 import { createTranscribeTool } from './transcribe.ts'
 
@@ -28,6 +29,7 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
       createReplaceClipWithRegenerationTool(options),
       createCutSilenceTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
       createAnalyzeClipTool(options),
+      createGenerateImageTool(options),
     ],
   })
 }
@@ -44,4 +46,5 @@ export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__replace_clip_with_regeneration`,
   `mcp__${TOOL_MCP_SERVER_NAME}__cut_silence`,
   `mcp__${TOOL_MCP_SERVER_NAME}__analyze_clip`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__generate_image`,
 ]

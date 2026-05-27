@@ -1,8 +1,10 @@
 export type { BrowserActionBridge, ProviderContext, ProviderProgressEvent } from './types.ts'
 export * as analysis from './analysis/index.ts'
+export * as image from './image/index.ts'
 export * as transcription from './transcription/index.ts'
 export * as video from './video/index.ts'
 import type { VideoAnalysisProvider } from './analysis/types.ts'
+import type { ImageGenerationProvider } from './image/types.ts'
 import type { TranscriptionProvider } from './transcription/types.ts'
 import type { VideoGenerationProvider } from './video/types.ts'
 
@@ -16,4 +18,5 @@ export interface ProvidersBundle {
   transcription: ReadonlyArray<TranscriptionProvider>
   videoGeneration: ReadonlyArray<VideoGenerationProvider>
   analysis: ReadonlyArray<VideoAnalysisProvider>
+  imageGeneration: ReadonlyArray<ImageGenerationProvider>
 }
