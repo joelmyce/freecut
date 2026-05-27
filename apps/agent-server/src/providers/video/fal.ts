@@ -8,15 +8,19 @@ import type {
 const FAL_QUEUE_BASE = 'https://queue.fal.run'
 
 /**
- * Kling 1.5 Standard text-to-video. Picked as the default — fast, cheap,
- * and stable. Schema differs from later Kling versions:
+ * Kling 3 Standard text-to-video. Bumped from v1.5/standard on 2026-05-27
+ * after fal returned 404 from v1.5/standard and v2.1/standard — those
+ * sub-models appear to have been retired. v3/standard is the current
+ * generally-available text-to-video Kling tier on fal.
+ *
+ * Schema differs from earlier Kling versions:
  *   - v1 / v1.5 / v2.x family: `{prompt, aspect_ratio, duration: "5" | "10"}`
  *   - v3 family: `{prompt, aspect_ratio, duration: "3"-"15", generate_audio}`
  * The body builder branches on the model id so users can still override
- * to a Kling 3.x model via the tool's `model` arg without sending a
+ * to a Kling 1.x model via the tool's `model` arg without sending a
  * malformed payload (older models reject `duration: "6"`).
  */
-const DEFAULT_MODEL = 'fal-ai/kling-video/v1.5/standard/text-to-video'
+const DEFAULT_MODEL = 'fal-ai/kling-video/v3/standard/text-to-video'
 
 /** Snap point between the two legacy Kling duration buckets. Anything above this
  * rounds up to "10", anything at-or-below rounds down to "5". 7.5s is the

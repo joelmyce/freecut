@@ -71,17 +71,19 @@ describe('FalVideoProvider', () => {
   })
 
   it('happy path: submit → IN_QUEUE → IN_PROGRESS → COMPLETED → result', async () => {
+    // Default model post-2026-05-27 is fal-ai/kling-video/v3/standard/text-to-video
+    // (the v1.5/standard endpoint was retired by fal that day).
     const { fetchImpl, calls } = makeFetch([
       {
-        urlMatch: 'queue.fal.run/fal-ai/kling-video/v1.5/standard/text-to-video',
+        urlMatch: 'queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video',
         body: {
           request_id: 'req-1',
           status_url:
-            'https://queue.fal.run/fal-ai/kling-video/v1.5/standard/text-to-video/requests/req-1/status',
+            'https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video/requests/req-1/status',
           response_url:
-            'https://queue.fal.run/fal-ai/kling-video/v1.5/standard/text-to-video/requests/req-1',
+            'https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video/requests/req-1',
           cancel_url:
-            'https://queue.fal.run/fal-ai/kling-video/v1.5/standard/text-to-video/requests/req-1/cancel',
+            'https://queue.fal.run/fal-ai/kling-video/v3/standard/text-to-video/requests/req-1/cancel',
         },
       },
       { urlMatch: '/status', body: { status: 'IN_QUEUE', queue_position: 3 } },
@@ -104,7 +106,7 @@ describe('FalVideoProvider', () => {
       ctx,
     )
     expect(result.sourceUrl).toBe('https://fal.media/abc.mp4')
-    expect(result.modelUsed).toBe('fal-ai/kling-video/v1.5/standard/text-to-video')
+    expect(result.modelUsed).toBe('fal-ai/kling-video/v3/standard/text-to-video')
     expect(result.durationSec).toBe(5)
     expect(progress.map((p) => p.stage)).toEqual([
       'submitting',
@@ -115,17 +117,18 @@ describe('FalVideoProvider', () => {
     expect(progress[1]?.detail).toBe('position 3')
     expect(calls[0]?.init?.method).toBe('POST')
     expect(calls[0]?.init?.headers).toMatchObject({ Authorization: 'Key k' })
-    // Legacy Kling body — `duration` is "5" or "10" only, and no `generate_audio`.
+    // v3 Kling body — `duration` is a number-shaped string in 3..15 and
+    // `generate_audio: false` is required.
     const body = JSON.parse(String(calls[0]?.init?.body))
     expect(body).toMatchObject({
       prompt: 'city skyline',
       aspect_ratio: '16:9',
-      duration: '5',
+      duration: '6',
+      generate_audio: false,
     })
-    expect(body).not.toHaveProperty('generate_audio')
   })
 
-  it('legacy kling snaps targetDuration to "5" or "10"', async () => {
+  it('legacy kling (v1.5) snaps targetDuration to "5" or "10"', async () => {
     async function runWithDuration(seconds: number): Promise<string> {
       const { fetchImpl, calls } = makeFetch([
         { urlMatch: 'queue.fal.run/fal-ai', body: { request_id: 'r' } },
@@ -134,7 +137,17 @@ describe('FalVideoProvider', () => {
       ])
       const fal = new FalVideoProvider({ apiKey: 'k', fetchImpl, sleep: async () => {} })
       const { ctx } = makeCtx()
-      await fal.generate({ prompt: 'p', aspect: '16:9', targetDurationSec: seconds }, ctx)
+      await fal.generate(
+        {
+          prompt: 'p',
+          aspect: '16:9',
+          targetDurationSec: seconds,
+          // Explicit legacy model — default is now v3 which uses a different
+          // duration schema.
+          model: 'fal-ai/kling-video/v1.5/standard/text-to-video',
+        },
+        ctx,
+      )
       return JSON.parse(String(calls[0]?.init?.body)).duration as string
     }
     expect(await runWithDuration(3)).toBe('5') // <7.5

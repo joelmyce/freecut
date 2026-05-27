@@ -57,7 +57,7 @@ const inputSchema = {
     .string()
     .optional()
     .describe(
-      'Provider-specific model id. fal default is "fal-ai/kling-video/v1.5/standard/text-to-video" (Kling 1.5 Standard — fast and cheap). Override when the user names a specific model — e.g. "fal-ai/kling-video/v3/standard/text-to-video" for the latest, "fal-ai/kling-video/v3/pro/text-to-video" for top quality.',
+      'Provider-specific model id. fal default is "fal-ai/kling-video/v3/standard/text-to-video" (Kling 3 Standard — the current GA tier). Override when the user names a specific model — e.g. "fal-ai/kling-video/v3/pro/text-to-video" for higher quality. The legacy v1.5 and v2.1 standard sub-models were retired by fal on 2026-05-27 and will 404.',
     ),
   aspect: z
     .enum(['16:9', '9:16', '1:1'])
