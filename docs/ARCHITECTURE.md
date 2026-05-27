@@ -533,10 +533,20 @@ to `.gitignore`** if the workspace is ever checked in).
 
 ### Q5. Default model for `generate_broll`
 
-**Decision: configurable per-project, default cost-optimized.** For
+**Decision: configurable per-call, cost-optimized default.** For
 a personal/self-hosted tool the cost ceiling matters more than the marginal
-quality jump. Make it a setting in the storyboard scene side panel, and
-inherit it for timeline-tool calls.
+quality jump.
+
+**Locked during M3 (2026-05-26):** the implementation default is
+`fal-ai/kling-video/v1.5/standard/text-to-video` (Kling 1.5 Standard) —
+fast, cheap, stable. The tool exposes a `model` arg so any fal model id
+can be substituted per call (e.g. `fal-ai/kling-video/v3/standard/text-to-video`
+for the latest, `fal-ai/kling-video/v3/pro/text-to-video` for top quality).
+The fal provider's request-body builder is model-aware: legacy Kling family
+sends `{duration: "5"|"10"}`; Kling v3 sends `{duration: "3"-"15",
+generate_audio: false}`. A storyboard-side default selector (Phase 2) will
+make this a per-project setting; for Phase 1 the chat prompt is the
+selector.
 
 ### Q6. Browser or Electron?
 

@@ -1,9 +1,13 @@
 # Phase 1 — Implementation Plan
 
-**Status:** In progress. **M0 complete (2026-05-26)** — agent server, WS
-bridge, browser client, dev scripts, and end-to-end `echo` roundtrip all
-verified. **M1 (transcribe) is next.** See `~/.claude/projects/-Users-joelm-Documents-Antigravity-FreeCut/memory/ai-video-editor-status.md`
-for the live status and current-session caveats.
+**Status:** In progress. **M0 + M1 + M2 + M3 complete and user-verified
+(2026-05-26)** — agent server, WS bridge, chat panel UI, `transcribe`
+(local Whisper + OpenAI), `add_subtitles` (with auto-chain from
+`transcribe`), and `generate_broll` (fal video provider with placeholder
+→ swap pattern) all working end-to-end on `feat/ai-agent`. **M4
+(`replace_clip_with_regeneration` + `cut_silence`) is next.** See
+`~/.claude/projects/-Users-joelm-Documents-Antigravity-FreeCut/memory/ai-video-editor-status.md`
+for the live commit log and bookkeeping debts.
 
 Generated from the build brief + `docs/ARCHITECTURE.md` §5–§6 after Phase 0
 reconnaissance.
@@ -322,6 +326,36 @@ and undo integration. The tool is barely more than a wrapper.
 
 ## 5. Tool 3 — `generate_broll`
 
+**Status: shipped + user-verified 2026-05-26.** Implementation choices made
+during the build:
+
+- **Default model:** `fal-ai/kling-video/v1.5/standard/text-to-video` —
+  picked for speed, cost, and stability. Override via the tool's `model`
+  arg (e.g. `fal-ai/kling-video/v3/standard/text-to-video` for Kling 3.0).
+- **Model-aware request body:** legacy Kling family (v1 / v1.5 / v2.x) gets
+  `{prompt, aspect_ratio, duration: "5"|"10"}` with a 7.5s snap point;
+  Kling v3 gets `{prompt, aspect_ratio, duration: "3"-"15", generate_audio:
+  false}`. Detection via regex on `/kling-video/v3` in the model id.
+- **Placeholder:** flagged `ShapeItem` with an `aiPlaceholder` meta field
+  (chosen over a new TimelineItem `type` to keep the surface small —
+  v1 ships, ergonomics can promote later).
+- **Atomic swap:** `_removeItems` + `_addItem` inside a custom undo entry
+  whose `beforeSnapshot` is the *pre-generation* state (captured at
+  placeholder insert). Single Ctrl+Z rewinds past the placeholder; second
+  Ctrl+Z is a no-op. Insert/error/remove paths bypass the undo stack
+  entirely (they're not user actions).
+- **Track placement:** always creates a fresh "AI Generated" video track
+  above existing tracks unless `track_id` is supplied. Earlier "reuse
+  topmost track" behavior was a bug — fixed in the same session.
+- **Media library integration:** swap handler uses the *store action*
+  `useMediaLibraryStore.getState().importMediaFromUrl(url)` (not the
+  bare service) so the clip appears in the library UI. Imported media
+  gets `aiGenerated: {provider, model, prompt, generatedAt}` on its
+  `MediaMetadata`, which the card UI surfaces as an indigo Wand2 badge.
+- **Tool-progress streaming:** not wired in v1. Placeholder visibility +
+  the final swap are the user-facing progress feedback. Wire later if
+  needed for long-running models.
+
 **Signature:**
 ```
 generate_broll(
@@ -373,14 +407,15 @@ call.
 **Failure:** placeholder transitions to error visual; chat shows error
 message; user can either remove the placeholder or retry via the chat.
 
-**Open during planning (settle in 2.1 / before 5):**
+**Settled during M3 build:**
 
-- Should the placeholder be a new TimelineItem `type` (`'placeholder'`) or
-  a special-cased `'shape'`? New type is cleaner but touches more files
-  (schema, renderer, action validators). I'd lean toward a flagged shape
-  for v1 unless that complicates rendering
-- Atomic swap mechanism: replace-by-ID via `updateItem`, or
-  `removeItems+addItems` in one `execute()`? The latter is more honest
+- *Placeholder shape:* flagged `'shape'` with `aiPlaceholder` meta. New
+  TimelineItem `type` deferred — would have rippled into schema migrations,
+  renderer branches, and every action's validators for negligible UX gain.
+- *Atomic swap mechanism:* `_removeItems` + `_addItem` inside a custom
+  undo entry constructed via `useTimelineCommandStore.getState().addUndoEntry`
+  with a pre-generation snapshot. More honest than `updateItem` (the new
+  item really is new) and lets the placeholder skip the undo stack entirely.
 
 **Acceptance criteria:**
 
@@ -476,15 +511,15 @@ at the start"` → audio clip appears at 00:00 on an audio track.
 Each milestone = a recordable demo + a manual smoke-test list. Roughly two
 weeks per milestone target, faster if the prereqs go cleanly.
 
-| ID | Demo | Manual smoke tests |
-|---|---|---|
-| **M0** | Pre-prereqs done — agent server runs, browser connects, dummy tool roundtrip works | `npm run dev:all` boots both; chat panel shows "connected"; `say hi` echoes |
-| **M1** | Agent transcribes a clip via chat (both providers) | Short clip → local; long clip → openai; cancellation; transcript file at expected path |
-| **M2** | Agent adds subtitles via chat | Captions appear on new track; single undo removes them; replaceExisting works |
-| **M3** | Agent generates and inserts B-roll via chat | Placeholder appears; progress streams; real clip swaps in; failure path; cancel path; metadata file written |
-| **M4** | `replace_clip_with_regeneration` + `cut_silence` working | Regen swaps in place; silence-cut preserves captions; undo restores |
-| **M5** | `generate_voiceover` working | Both Kokoro and ElevenLabs paths; inserts at playhead; correct duration |
-| **M6** | *(deferred)* Hyperframe tools | When Hyperframe API docs available |
+| ID | Demo | Manual smoke tests | Status |
+|---|---|---|---|
+| **M0** | Pre-prereqs done — agent server runs, browser connects, dummy tool roundtrip works | `npm run dev:all` boots both; chat panel shows "connected"; `say hi` echoes | ✅ done |
+| **M1** | Agent transcribes a clip via chat (both providers) | Short clip → local; long clip → openai; cancellation; transcript file at expected path | ✅ local path verified; OpenAI/cancel paths owed |
+| **M2** | Agent adds subtitles via chat | Captions appear on new track; single undo removes them; replaceExisting works | ✅ done |
+| **M3** | Agent generates and inserts B-roll via chat | Placeholder appears; real clip swaps in; clip lands in Media Library with AI badge; single Ctrl+Z removes the final clip; `generation.json` written | ✅ happy path verified; cancel + failure visuals owed |
+| **M4** | `replace_clip_with_regeneration` + `cut_silence` working | Regen swaps in place; silence-cut preserves captions; undo restores | next |
+| **M5** | `generate_voiceover` working | Both Kokoro and ElevenLabs paths; inserts at playhead; correct duration | pending |
+| **M6** | *(deferred)* Hyperframe tools | When Hyperframe API docs available | blocked |
 
 ---
 
@@ -492,18 +527,8 @@ weeks per milestone target, faster if the prereqs go cleanly.
 
 These will be settled during planning of individual milestones, not now:
 
-- **WebSocket transport library** — likely `ws`; consider SSE if streaming
-  agent text output works better that way
-- **`dev:all` runner** — `npm-run-all` package, custom Node script, or
-  extend the existing `scripts/run-dev-and-perf.mjs` pattern
-- **API-key location** — single `.env` at repo root shared by browser
-  (`VITE_*`) and server, or split `.env.server`? Server keys (OPENAI,
-  fal, kie, ElevenLabs) should NOT have `VITE_` prefix to avoid leaking
-  into the client bundle
 - **Hyperframe tool surface** — Q9 of `ARCHITECTURE.md`; revisit when API
   docs in hand
-- **Placeholder TimelineItem mechanism** — new `type` discriminant vs flagged
-  shape; see §5
 - **Tool failure recovery** — currently "report and stop"; refine when we
   see actual failure modes in the wild
 - **Provider auto-routing thresholds** — 30 min for transcription is a
@@ -511,6 +536,17 @@ These will be settled during planning of individual milestones, not now:
 - **Should the chat panel persist conversation history per project?** —
   probably yes (`projects/{id}/chat.json`), but how much context to replay
   on reload is open
+
+**Settled during M0–M3 build (recorded here for the audit trail):**
+
+- *WebSocket transport library*: `ws` (M0).
+- *`dev:all` runner*: `scripts/run-dev-and-agent.mjs` — custom Node spawn,
+  prefixes both child processes' stdio (M0).
+- *API-key location*: single `.env` at repo root, loaded by the agent
+  server via `dotenv` from `apps/agent-server` cwd — `OPENAI_API_KEY`,
+  `FAL_API_KEY` etc. live there with no `VITE_` prefix (M1, M3).
+- *Placeholder TimelineItem mechanism*: flagged `ShapeItem` with
+  `aiPlaceholder` meta (M3 — see §5).
 
 ---
 
