@@ -233,6 +233,32 @@ export type ShapeType =
   | 'heart'
   | 'path'
 
+/**
+ * When set, this shape is an AI-generation placeholder: a transient block
+ * the agent inserts on the timeline while a remote provider renders the
+ * actual media. The shape will be swapped for a real media item once the
+ * job completes, or transitioned to `status: 'error'` on failure.
+ *
+ * `prompt` is what the agent asked the provider to render; the chat panel
+ * surfaces it so users see what's generating and so failed placeholders
+ * can be retried with the original prompt.
+ *
+ * Placeholders are not user-authored — they're internal coordination state.
+ * The atomic swap (remove placeholder + add real media in one execute())
+ * means a single Ctrl+Z removes the final clip; the placeholder itself
+ * never appears in the undo stack as a separate entry.
+ */
+export interface AiPlaceholderMeta {
+  prompt: string
+  status: 'generating' | 'error'
+  /** Provider id (`fal`, `kie`, …) so the chat retry path knows where to resend. */
+  providerId?: string
+  /** Optional model id used for the request, for cost/recovery flows. */
+  modelId?: string
+  /** Human-readable error message when `status === 'error'`. */
+  errorMessage?: string
+}
+
 export type ShapeItem = BaseTimelineItem & {
   type: 'shape'
   shapeType: ShapeType
@@ -253,6 +279,8 @@ export type ShapeItem = BaseTimelineItem & {
   maskType?: 'clip' | 'alpha' // clip = hard edges, alpha = soft edges
   maskFeather?: number // Feather amount for alpha masks (0-100px, default: 10)
   maskInvert?: boolean // Invert mask (show outside, hide inside)
+  /** When set, this shape is an AI-generation placeholder — see {@link AiPlaceholderMeta}. */
+  aiPlaceholder?: AiPlaceholderMeta
 }
 
 // Adjustment layer - applies effects to all items on tracks ABOVE this track

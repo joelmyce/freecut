@@ -1,6 +1,8 @@
 export type { BrowserActionBridge, ProviderContext, ProviderProgressEvent } from './types.ts'
 export * as transcription from './transcription/index.ts'
+export * as video from './video/index.ts'
 import type { TranscriptionProvider } from './transcription/types.ts'
+import type { VideoGenerationProvider } from './video/types.ts'
 
 /**
  * Bundle of every provider the server has constructed at startup. Tools take
@@ -10,4 +12,5 @@ import type { TranscriptionProvider } from './transcription/types.ts'
  */
 export interface ProvidersBundle {
   transcription: ReadonlyArray<TranscriptionProvider>
+  videoGeneration: ReadonlyArray<VideoGenerationProvider>
 }

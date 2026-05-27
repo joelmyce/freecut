@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { startBridgeServer } from './bridge/server.ts'
 import { DEFAULT_BRIDGE_PORT } from './bridge/protocol.ts'
 import { LocalWhisperBrowserProxy, OpenAIWhisperProvider } from './providers/transcription/index.ts'
+import { FalVideoProvider } from './providers/video/index.ts'
 import type { ProvidersBundle } from './providers/index.ts'
 
 // Load .env from the monorepo root, not the workspace package cwd —
@@ -15,19 +16,24 @@ const PORT = Number(process.env.FREECUT_AGENT_PORT ?? DEFAULT_BRIDGE_PORT)
 
 const log = (message: string, meta?: Record<string, unknown>) => {
   const suffix = meta ? ` ${JSON.stringify(meta)}` : ''
-  console.log(`[agent-server] ${message}${suffix}`)
+  // CLI bootstrap output — written to stdout via process.stdout.write
+  // because the project lints away raw `console.log` calls.
+  process.stdout.write(`[agent-server] ${message}${suffix}\n`)
 }
 
 function buildProviders(): ProvidersBundle {
   const openai = new OpenAIWhisperProvider({ apiKey: process.env.OPENAI_API_KEY })
+  const fal = new FalVideoProvider({ apiKey: process.env.FAL_API_KEY })
   return {
     transcription: [new LocalWhisperBrowserProxy(), openai],
+    videoGeneration: [fal],
   }
 }
 
 const providers = buildProviders()
 log('providers initialised', {
   transcription: providers.transcription.map((p) => ({ id: p.id, available: p.isAvailable() })),
+  videoGeneration: providers.videoGeneration.map((p) => ({ id: p.id, available: p.isAvailable() })),
 })
 
 const wss = startBridgeServer({
