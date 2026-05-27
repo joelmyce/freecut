@@ -660,25 +660,31 @@ before the timeline-editing tools. Flag this early in planning if needed.
 
 **Decision: ship both the existing local vision model and Gemini Flash via
 the Google AI API as parallel providers for frame analysis, scene
-description, and captioning; user-selectable per call.**
+description, and captioning. Gemini is OPT-IN only — never part of the
+default route.**
 
 - **Local** (FreeCut's existing LFM captioning path,
   `infrastructure/analysis/captioning/lfm-captioning-provider.ts`, plus the
   Gemma-based scene-detection verification path) — used for fast, private
-  captioning of short clips.
-- **Gemini Flash** via the Google AI API — used for complex scene analysis on
-  long videos and for cases where local models are too small or too slow:
-  richer multi-frame reasoning, OCR, on-screen-text extraction, sentiment.
-- Both implement a common `VisionProvider` interface. Output schema
-  (`MediaCaption[]` and friends, persisted via the existing AI-output
-  envelope at `media/{id}/cache/ai/captions.json`) is shared.
-- **Selection strategy:** mirrors transcription — default local, with a
-  per-call override and an app-level auto-routing setting. Long clips and
-  complex queries route to Gemini Flash when enabled. `GEMINI_API_KEY` in
-  `.env` enables the cloud path.
-- The exact Gemini model version (the user said "3.5 Flash" — interpret as
-  whatever Google Flash variant is current when we wire this up) is a
-  one-line config in the provider adapter.
+  captioning of short clips. **This is the default for everything.**
+- **Gemini Flash** (`gemini-3.5-flash`) via the Google AI API — engaged only
+  when the user explicitly asks for it ("…using gemini") or when a tool
+  argument names it. Capabilities include richer multi-frame reasoning,
+  OCR, on-screen-text extraction, transcript-segment picking (used by
+  PHASE-1-PLAN.md §6.5.1), and visual captioning fallback. Not part of
+  auto-routing — refusing to silently route to a paid cloud API is a
+  deliberate constraint of this project.
+- Both implement a common `VisionProvider` (or `AnalysisProvider`)
+  interface. Output schema (`MediaCaption[]` and friends, persisted via
+  the existing AI-output envelope at `media/{id}/cache/ai/captions.json`)
+  is shared.
+- **Selection strategy:** default local, with a per-call `provider: 'gemini'`
+  override. No length-based auto-routing. `GEMINI_API_KEY` in `.env`
+  enables the cloud path but does NOT cause it to be used automatically.
+- Model id is a one-line config in the provider adapter. `gemini-3.5-flash`
+  (released 2026-05-19, GA stable; 1M-token multimodal context covering
+  text/image/video/audio/PDF; 65k max output) as of Phase 1 implementation
+  on 2026-05-26. Bump when a newer Flash ships.
 
 ### Q12. Provider abstraction layer
 
@@ -686,14 +692,14 @@ description, and captioning; user-selectable per call.**
 capability.) Every capability that has more than one runtime gets a thin
 provider interface. Five exist or are now planned:
 
-| Capability | Local provider | Cloud provider |
-|---|---|---|
-| Transcription | local Whisper (existing) | OpenAI Whisper API |
-| Vision / captioning | LFM + Gemma (existing) | Gemini Flash API |
-| Video generation | — | fal, kie (model arbitrage between them) |
-| TTS | Kokoro (existing) | ElevenLabs |
-| Music generation | MusicGen (existing) | — (no v1 cloud need) |
-| Motion graphics / avatars | — | HeyGen Hyperframe |
+| Capability | Local provider | Cloud provider(s) | Default route |
+|---|---|---|---|
+| Transcription | local Whisper (existing) | OpenAI Whisper API, Gemini Flash *(opt-in only, M4 §6.5.4)* | local for short clips, OpenAI for long; Gemini never auto-routed |
+| Vision / captioning | LFM + Gemma (existing) | Gemini Flash API *(opt-in only)* | local LFM always; Gemini opt-in only |
+| Video generation | — | fal (Kling 1.5 Std default — M3 locked), kie *(future)* | fal default; per-call `model:` override |
+| TTS | Kokoro (existing) | ElevenLabs | TBD at M5; likely local default |
+| Music generation | MusicGen (existing) | — (no v1 cloud need) | local only |
+| Motion graphics / avatars | — | HeyGen Hyperframe *(M6, deferred)* | n/a until M6 |
 
 All providers register against `shared/state/local-inference/registry.ts`
 (which already conceptually supports both local and remote runtimes) so the

@@ -44,6 +44,11 @@ B-roll replace the placeholder ~30s later.
   (Hyperframe-dependent)
 - Provider abstraction for transcription (local + OpenAI) and video
   generation (fal + kie). TTS provider (Kokoro + ElevenLabs)
+- **Opt-in Gemini Flash analysis provider (`gemini-3.5-flash`)** — used
+  only when the user explicitly asks ("…using gemini"). Default routing
+  is unchanged (Whisper for transcription, local LFM for visual
+  captioning, RMS for silence). Wired via the existing capability/
+  router pattern (see §6.5 for the cross-cutting work).
 - Generation metadata persisted to disk via the existing AI-output envelope
 - `summarizeTimelineForAgent()` helper sent in every system prompt
 - Cancellation, basic error surfacing, undo-friendly mutations
@@ -51,13 +56,23 @@ B-roll replace the placeholder ~30s later.
 ### Explicitly out of scope
 
 - Storyboard view, scene cards, "send to timeline" (Phase 2)
-- Hyperframe tool surface (`add_lower_third`) — deferred until API docs in hand
-- Vision/captioning provider abstraction (Q11 Gemini Flash) — wired in Phase
-  2 when storyboard frame-prep needs it; existing local LFM path keeps working
+- Hyperframe tool surface (`add_lower_third`, `add_avatar_clip`, etc.)
+  — deferred to M6 once Hyperframe API docs are in hand. **Reaffirmed
+  2026-05-26:** Hyperframe is the path for AI-generated talking-head /
+  avatar / lower-third content. We will not adopt Remotion as an
+  alternative — FreeCut's existing GPU compositor (text, shapes,
+  transitions, keyframes) renders everything on-timeline. Sibling
+  projects that wire Remotion + a CLI render farm are solving a
+  problem we don't have.
 - Multi-agent / parallel tool execution
 - Settings UI for provider selection (use `.env` for v1)
 - Production packaging / single-binary distribution
 - Tool failure recovery beyond "report error to chat and stop"
+- **LLM-generated FFmpeg command strings.** High-level tools call
+  FreeCut actions internally; the LLM never writes shell or FFmpeg
+  invocations directly. Documented here because at least one sibling
+  AI editor (HyperEdit) does exactly this and it's an RCE surface we
+  decline.
 
 ---
 
@@ -356,6 +371,14 @@ during the build:
   the final swap are the user-facing progress feedback. Wire later if
   needed for long-running models.
 
+**M4-era retrofit (planned, see §6.5):** transcript-grounded prompt
+expansion. When a transcript exists for the requested time range, the
+tool prepends the segment to the model prompt as a `VIDEO CONTEXT`
+block with explicit instructions to use specific terms from it. Pure
+quality lift, no schema change, free given M1 already produces
+transcripts. Same retrofit lands on `replace_clip_with_regeneration`
+(§6.1).
+
 **Signature:**
 ```
 generate_broll(
@@ -448,8 +471,29 @@ replace_clip_with_regeneration(clip_id, new_prompt?, options?) → { clipId, pro
 context. If `new_prompt` is omitted, regenerates with the original. If the
 clip wasn't generated (no metadata file), error with a clear message.
 
+**Design decision: placeholder→swap (default) vs in-place file overwrite.**
+HyperEdit (`scripts/local-ffmpeg-server.js:handleEditAnimation`) ships an
+in-place overwrite — same `assetId`, same on-disk filename, browser
+cache-busts via `?v=Date.now()`. Tempting because no timeline plumbing
+changes. We're sticking with the **placeholder→swap** pattern for v1
+because it (a) matches M3 so the undo semantics stay consistent (single
+Ctrl+Z rewinds past the placeholder), (b) avoids cache-invalidation
+surface area on `sourceFps`/`sourceDuration`/waveform/reverse-conform
+caches, and (c) lets the user keep seeing the existing clip while the
+new one is rendering. Revisit if M4 verification shows the swap UX
+feels heavy for in-place replacement.
+
+**Transcript grounding (port from HyperEdit):** when the original clip
+has a transcript saved (or when the regen target overlaps a transcript
+on the timeline), the tool prepends the transcript segment for the
+target time range to the model prompt as `VIDEO CONTEXT`. Best-effort —
+not a precondition, fallback to plain prompt if no transcript exists.
+Same retrofit lands on `generate_broll` (§5).
+
 **Acceptance:** user selects a generated clip → says `"replace this with a
-more dramatic version"` → placeholder swaps with new generation in place.
+more dramatic version"` → placeholder swaps with new generation in place;
+transcript context (if any) is visible in the agent-server log; single
+Ctrl+Z restores the original clip.
 
 ### 6.2 `cut_silence`
 
@@ -504,6 +548,153 @@ audio-item insertion.
 **Acceptance:** user says `"add a voiceover saying 'welcome to the show'
 at the start"` → audio clip appears at 00:00 on an audio track.
 
+### 6.5 Cross-pollinated patterns (HyperEdit analysis, 2026-05-26)
+
+After M3 shipped we did a deep read of the sibling HyperEdit / Mocha
+project. Five patterns are worth porting; they land alongside M4 rather
+than as a standalone milestone because each is small and the bundle is
+synergistic.
+
+**6.5.1 Transcript-grounded prompts** *(retrofit to §5, integral to §6.1)*
+
+When a transcript exists for the requested time range, generation
+tools prepend the segment to the model prompt as:
+
+```
+VIDEO CONTEXT (from the transcript):
+"{segment_text}"
+This segment is from {start}s to {end}s.
+IMPORTANT: Use specific terms, concepts, and themes from this context.
+```
+
+If the user didn't give a time range, the analysis provider (Whisper
+default, or Gemini when explicitly requested — see 6.5.4) is asked to
+*pick* the most relevant segment from the transcript first.
+
+*Effort:* trivial. ~30 lines in `generate-broll.ts` and the new
+`replace-clip-with-regeneration.ts`. Best-effort — skip silently if no
+transcript exists. *Acceptance:* agent-server log shows the
+`VIDEO CONTEXT` block in the outbound prompt when a transcript is
+saved for the clip.
+
+**6.5.2 Chat panel UX additions**
+
+Three small additions to `src/features/agent/chat-panel/`:
+
+1. **Suggestion chips above the input.** ~12 starter prompts seeded
+   from our actual tool set: "Add captions", "Cut silences over 0.5s",
+   "Add B-roll between 0:12 and 0:18", "Regenerate this clip". Click
+   to populate the textarea. Lowers cold-start cost.
+
+2. **Reference / range pill picker below the input.** Tiny popover to
+   attach a `[Clip: foo.mp4 on V1 at 0:00]` reference or a `[Time
+   Range: 0:12-0:18]` scope. Pills compile to bracket-tagged context
+   lines prepended to the user's prompt. Data already lives in our
+   selection + timeline stores; only UI work.
+
+3. **UI-state flags appended to `summarizeTimelineForAgent()`.** A
+   small block at the bottom of the summary carrying
+   `selectedClipIsAiGenerated`, `playheadInsideClipId`,
+   `editTabFocusedItemId` (when we add an edit tab). Lets Claude infer
+   "this clip" / "right here" without a separate tool call.
+
+*Effort:* one to two days total, can ship incrementally before or
+alongside M4. *Acceptance:* chip click populates the input; reference
+pill makes "regenerate this clip" route deterministically; summary
+shows the new flags.
+
+**6.5.3 Concept-card approval flow** *(scoped for Phase 2 storyboard;
+optional M4-era addition for `generate_broll`)*
+
+HyperEdit splits expensive generations into two endpoints —
+`analyze-for-animation` returns a JSON concept (no rendering) which
+the chat shows as an Approve/Edit card; only on Approve does the
+second call actually generate. Maps 1:1 to Phase 2 storyboard cards
+and gives us an approval gate on spend before then. Optional add to
+M3/M4 if we want a "I'll generate a 5s Kling 1.5 clip of '…' at
+$0.18 — approve?" confirmation card. *Effort:* small for the
+protocol (two tool calls + a `pending-confirmation` bridge message);
+medium for the chat-card UI. *Carry into Phase 2 as the storyboard's
+scene-card data model.*
+
+**6.5.4 Opt-in Gemini Flash analysis provider**
+
+Adds `gemini-3.5-flash` (released 2026-05-19, GA stable — 1M token
+input context, multimodal text/image/video/audio/PDF, 65k token
+output, supports function calling + grounding + structured output)
+as a **third** transcription provider and opens the door for a
+`VideoAnalysisProvider` capability (a new shape inside
+`ProvidersBundle`). Default behavior is unchanged — local Whisper
+for transcription, local LFM for visual captioning, RMS for silence
+detection. Gemini is engaged only when the user says so
+("…using gemini").
+
+The native video-input support is the real reason this is worth
+wiring up — it means a single `gemini-3.5-flash` call can accept a
+short clip and a question, returning structured analysis. That
+collapses what would otherwise be a transcribe → analyze
+chain for use cases like chapter detection, content summarization,
+and "find the moment where X happens."
+
+Concrete wiring:
+
+- `apps/agent-server/src/providers/transcription/gemini.ts` —
+  implements `TranscriptionProvider` against `gemini-3.5-flash`'s
+  multimodal API. Sends container bytes (same path as the OpenAI
+  provider) and asks Gemini for verbose-JSON-equivalent output.
+- `apps/agent-server/src/providers/analysis/` — new capability with
+  one provider (`GeminiAnalysisProvider`) implementing methods like
+  `pickRelevantSegment(transcript, prompt)` (used by 6.5.1 when the
+  user didn't specify a time range) and `describeFrameAt(mediaId,
+  seconds)` (future visual-captioning hook). The router throws unless
+  the user explicitly requests `gemini`.
+- `transcribe` tool gains `provider: 'auto' | 'local' | 'openai' | 'gemini'`
+  and threads through to the router.
+- `.env`: `GEMINI_API_KEY`.
+
+The key design constraint, stated in scope above: **never route to
+Gemini by default**. The existing local Whisper / OpenAI / LFM paths
+keep being the defaults. Gemini is an opt-in tool the user can reach
+for when they want it. *Effort:* small for the transcription
+provider (mirror OpenAI's); medium when we start using `analysis`
+methods for prompt expansion in 6.5.1. *Acceptance:* `transcribe
+clip_x using gemini` succeeds; `transcribe clip_x` still routes to
+local Whisper.
+
+**6.5.5 Director / intent router** *(deferred — revisit at Phase 2)*
+
+Client-side preflight that restricts the tool set per turn based on
+the user's prompt + selection state, instead of sending all tools
+every time. Cuts context bloat and ambiguity once we have 8–10+
+tools. Not worth the complexity at our current 4-tool scale —
+revisit when M6 or Phase 2 storyboard pushes the count up.
+
+### 6.6 Patterns reviewed and rejected
+
+For completeness — these are documented so we don't re-evaluate them
+in a future session:
+
+- **Remotion as a rendering layer.** HyperEdit renders generated
+  scenes via Remotion CLI server-side and re-imports the MP4. Total
+  duplication of our GPU compositor — we have text, shapes,
+  transitions, masks, keyframes already. Adopt scene *schemas* when
+  Phase 2 happens, not the renderer.
+- **LLM-generated FFmpeg command strings.** RCE surface. Our
+  architecture (high-level tools backed by FreeCut actions) avoids
+  this by construction.
+- **Cloudflare Worker / Hono backend.** HyperEdit's "real backend"
+  turns out to be a local Node server (7700 lines in
+  `scripts/local-ffmpeg-server.js`); the worker is a 199-line
+  vestige. We already have the right shape (`apps/agent-server/`).
+- **Three.js / `@remotion/three` scenes.** Cool, huge, defer
+  indefinitely.
+- **Two parallel session systems** (HyperEdit's `useProject` +
+  `useVideoSession`). They explicitly call this out as legacy in
+  their CLAUDE.md. Our single-source-of-truth timeline avoids the
+  problem.
+- **Mocha platform glue** (`@getmocha/*`, `wrangler.json`). Not
+  portable.
+
 ---
 
 ## 7. Milestones
@@ -517,9 +708,9 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M1** | Agent transcribes a clip via chat (both providers) | Short clip → local; long clip → openai; cancellation; transcript file at expected path | ✅ local path verified; OpenAI/cancel paths owed |
 | **M2** | Agent adds subtitles via chat | Captions appear on new track; single undo removes them; replaceExisting works | ✅ done |
 | **M3** | Agent generates and inserts B-roll via chat | Placeholder appears; real clip swaps in; clip lands in Media Library with AI badge; single Ctrl+Z removes the final clip; `generation.json` written | ✅ happy path verified; cancel + failure visuals owed |
-| **M4** | `replace_clip_with_regeneration` + `cut_silence` working | Regen swaps in place; silence-cut preserves captions; undo restores | next |
+| **M4** | `replace_clip_with_regeneration` + `cut_silence` working, with the cross-pollinated patterns from §6.5 (transcript-grounded prompts retrofit, chat UX upgrades, opt-in Gemini provider) | Regen swaps in place via the placeholder pattern with transcript context visible in logs; silence-cut preserves captions; undo restores; `transcribe clip using gemini` succeeds while plain `transcribe` still routes to Whisper; reference-pill picker in chat resolves "this clip" deterministically | next |
 | **M5** | `generate_voiceover` working | Both Kokoro and ElevenLabs paths; inserts at playhead; correct duration | pending |
-| **M6** | *(deferred)* Hyperframe tools | When Hyperframe API docs available | blocked |
+| **M6** | *(deferred)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse M3's generate_broll async pattern with the same transcript-grounding from §6.5.1 | When Hyperframe API docs available; placeholder→swap flow stays identical; lower-thirds compose from FreeCut's GPU text + shapes (no Remotion) | blocked |
 
 ---
 
@@ -536,6 +727,26 @@ These will be settled during planning of individual milestones, not now:
 - **Should the chat panel persist conversation history per project?** —
   probably yes (`projects/{id}/chat.json`), but how much context to replay
   on reload is open
+
+**Phase 2 carryovers from the HyperEdit analysis (revisit when storyboard work starts):**
+
+- *`Scene[]` schema as the universal generative output shape.* HyperEdit
+  expresses every AI-generated segment as one of ~15 discriminated
+  scene types (`title | steps | features | stats | text | media | chart
+  | countdown | comparison | shapes | emoji | gif | lottie | 3d` plus
+  transitions) with uniform `content`, `camera`, `transition`,
+  `mediaAnimation` fields. Worth adopting as Phase 2's
+  `Project.storyboard` shape — we render via FreeCut's GPU primitives
+  + keyframes rather than Remotion, but the schema itself is gold.
+  Decision needed when storyboard work begins.
+- *Concept-card approval flow as the storyboard UI.* §6.5.3's
+  analyze→approve→render pattern is exactly the Phase 2 scene-card
+  flow. Build the protocol in Phase 1 if we want spend-confirmation
+  on `generate_broll`/`replace_clip_with_regeneration`; reuse it
+  wholesale for Phase 2.
+- *Director / intent router on agent-server.* §6.5.5. Defer until
+  tool count justifies the routing layer (~8–10+ tools, i.e. once
+  Hyperframe's M6 surface lands or Phase 2 storyboard tools ship).
 
 **Settled during M0–M3 build (recorded here for the audit trail):**
 
