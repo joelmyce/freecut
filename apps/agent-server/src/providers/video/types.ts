@@ -13,6 +13,15 @@ export interface VideoGenerationInput {
   targetDurationSec: number
   /** Optional provider-specific model id. Each provider has its own default. */
   model?: string
+  /**
+   * Source image URL for image-to-video models (e.g.
+   * `fal-ai/kling-video/v3/standard/image-to-video`). When set, the body
+   * builder emits the model-specific image field (Kling uses
+   * `start_image_url`) and omits `aspect_ratio` — image-to-video models
+   * auto-detect aspect from the input image. Ignored by text-to-video
+   * models.
+   */
+  imageUrl?: string
 }
 
 export interface VideoGenerationResult {

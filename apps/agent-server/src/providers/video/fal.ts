@@ -271,7 +271,33 @@ function isKlingV3(model: string): boolean {
   return /\/kling-video\/v3\b/.test(model)
 }
 
+function isImageToVideo(model: string): boolean {
+  return /\/image-to-video\b/.test(model)
+}
+
 function buildRequestBody(model: string, input: VideoGenerationInput): Record<string, unknown> {
+  if (isImageToVideo(model)) {
+    // Kling image-to-video (v3) schema verified against
+    // https://fal.ai/models/fal-ai/kling-video/v3/standard/image-to-video/api
+    // on 2026-05-27: `start_image_url` is the source field (NOT `image_url`),
+    // aspect is auto-detected from the input image, `generate_audio` defaults
+    // to true and must be flipped off for silent b-roll.
+    if (!input.imageUrl) {
+      throw new Error(`fal image-to-video model ${model} requires imageUrl in the input`)
+    }
+    const rounded = Math.round(input.targetDurationSec)
+    const clamped = Math.max(
+      KLING_V3_MIN_DURATION_SEC,
+      Math.min(KLING_V3_MAX_DURATION_SEC, rounded),
+    )
+    return {
+      start_image_url: input.imageUrl,
+      prompt: input.prompt,
+      duration: String(Number.isFinite(clamped) ? clamped : 5),
+      generate_audio: false,
+    }
+  }
+
   if (isKlingV3(model)) {
     const rounded = Math.round(input.targetDurationSec)
     const clamped = Math.max(

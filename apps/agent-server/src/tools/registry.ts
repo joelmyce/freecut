@@ -3,6 +3,7 @@ import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts
 import { echoTool } from './_stub.ts'
 import { createAddSubtitlesTool } from './add-subtitles.ts'
 import { createAnalyzeClipTool } from './analyze-clip.ts'
+import { createAnimateImageTool } from './animate-image.ts'
 import { createCutSilenceTool } from './cut-silence.ts'
 import { createGenerateBrollTool } from './generate-broll.ts'
 import { createGenerateImageTool } from './generate-image.ts'
@@ -30,6 +31,7 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
       createCutSilenceTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
       createAnalyzeClipTool(options),
       createGenerateImageTool(options),
+      createAnimateImageTool(options),
     ],
   })
 }
@@ -47,4 +49,5 @@ export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__cut_silence`,
   `mcp__${TOOL_MCP_SERVER_NAME}__analyze_clip`,
   `mcp__${TOOL_MCP_SERVER_NAME}__generate_image`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__animate_image`,
 ]

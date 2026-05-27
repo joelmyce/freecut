@@ -199,6 +199,59 @@ describe('FalVideoProvider', () => {
     expect(JSON.parse(String(calls2[0]?.init?.body)).duration).toBe('3')
   })
 
+  it('image-to-video model uses start_image_url + omits aspect_ratio + duration 3-15', async () => {
+    const { fetchImpl, calls } = makeFetch([
+      {
+        urlMatch: 'queue.fal.run/fal-ai/kling-video/v3/standard/image-to-video',
+        body: { request_id: 'r' },
+      },
+      { urlMatch: '/status', body: { status: 'COMPLETED' } },
+      { urlMatch: 'requests/r', body: { video: { url: 'https://x.mp4' } } },
+    ])
+    const fal = new FalVideoProvider({ apiKey: 'k', fetchImpl, sleep: async () => {} })
+    const { ctx } = makeCtx()
+    await fal.generate(
+      {
+        prompt: 'subtle drift',
+        aspect: '16:9',
+        targetDurationSec: 6,
+        model: 'fal-ai/kling-video/v3/standard/image-to-video',
+        imageUrl: 'https://fal.media/files/foo.png',
+      },
+      ctx,
+    )
+    const body = JSON.parse(String(calls[0]?.init?.body))
+    expect(body).toEqual({
+      prompt: 'subtle drift',
+      start_image_url: 'https://fal.media/files/foo.png',
+      duration: '6',
+      generate_audio: false,
+    })
+    // The body MUST NOT include aspect_ratio — Kling image-to-video
+    // auto-detects from the input image and rejects the field.
+    expect(body).not.toHaveProperty('aspect_ratio')
+  })
+
+  it('image-to-video model rejects calls without imageUrl', async () => {
+    const { fetchImpl } = makeFetch([
+      { urlMatch: 'queue.fal.run/fal-ai', body: { request_id: 'r' } },
+    ])
+    const fal = new FalVideoProvider({ apiKey: 'k', fetchImpl, sleep: async () => {} })
+    const { ctx } = makeCtx()
+    await expect(
+      fal.generate(
+        {
+          prompt: 'p',
+          aspect: '16:9',
+          targetDurationSec: 5,
+          model: 'fal-ai/kling-video/v3/standard/image-to-video',
+          // imageUrl deliberately missing
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(/requires imageUrl/)
+  })
+
   it('uses an overridden model when input.model is set', async () => {
     const { fetchImpl, calls } = makeFetch([
       { urlMatch: 'queue.fal.run/fal-ai/kling-video', body: { request_id: 'r' } },
