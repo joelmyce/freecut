@@ -25,7 +25,16 @@ interface ClientState {
 
 export function startBridgeServer(options: BridgeServerOptions): WebSocketServer {
   const log = options.log ?? ((m) => console.log(m))
-  const wss = new WebSocketServer({ port: options.port, host: '127.0.0.1' })
+  // 256MB cap — generous so larger media payloads from
+  // `read-clip-video-bytes` (base64-inflated by ~33%) make it through
+  // without bumping into ws default 100MB limit. M4.6+ analyze_clip flow
+  // sends entire video clips through here when they're below the
+  // server-side File API threshold; raise this if needed.
+  const wss = new WebSocketServer({
+    port: options.port,
+    host: '127.0.0.1',
+    maxPayload: 256 * 1024 * 1024,
+  })
   const clients = new Map<WebSocket, ClientState>()
 
   wss.on('listening', () => {

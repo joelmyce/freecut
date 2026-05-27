@@ -37,7 +37,11 @@ describe('createTranscribeTool', () => {
   it('routes via the provider router and returns the expected result shape', async () => {
     const local = mockProvider('local-whisper', true)
     const openai = mockProvider('openai-whisper', false)
-    const providers: ProvidersBundle = { transcription: [local, openai], videoGeneration: [] }
+    const providers: ProvidersBundle = {
+      transcription: [local, openai],
+      videoGeneration: [],
+      analysis: [],
+    }
     const transcribeSpy = vi.spyOn(local, 'transcribe')
 
     const toolDef = createTranscribeTool({
@@ -65,7 +69,11 @@ describe('createTranscribeTool', () => {
   it('forces openai when provider="openai"', async () => {
     const local = mockProvider('local-whisper', true)
     const openai = mockProvider('openai-whisper', true)
-    const providers: ProvidersBundle = { transcription: [local, openai], videoGeneration: [] }
+    const providers: ProvidersBundle = {
+      transcription: [local, openai],
+      videoGeneration: [],
+      analysis: [],
+    }
     const localSpy = vi.spyOn(local, 'transcribe')
     const openaiSpy = vi.spyOn(openai, 'transcribe')
 
@@ -83,7 +91,11 @@ describe('createTranscribeTool', () => {
   it('throws when the explicit provider is unavailable', async () => {
     const local = mockProvider('local-whisper', true)
     const openai = mockProvider('openai-whisper', false)
-    const providers: ProvidersBundle = { transcription: [local, openai], videoGeneration: [] }
+    const providers: ProvidersBundle = {
+      transcription: [local, openai],
+      videoGeneration: [],
+      analysis: [],
+    }
 
     const toolDef = createTranscribeTool({
       bridge: mockBridge(),
@@ -102,7 +114,7 @@ describe('createTranscribeTool', () => {
       captured.push(ctx.signal)
       return { text: '', segments: [], durationSec: 0 }
     })
-    const providers: ProvidersBundle = { transcription: [local], videoGeneration: [] }
+    const providers: ProvidersBundle = { transcription: [local], videoGeneration: [], analysis: [] }
     const controller = new AbortController()
 
     const toolDef = createTranscribeTool({
@@ -121,7 +133,7 @@ describe('createTranscribeTool', () => {
       received = { language: input.language }
       return { text: '', segments: [], durationSec: 0 }
     })
-    const providers: ProvidersBundle = { transcription: [local], videoGeneration: [] }
+    const providers: ProvidersBundle = { transcription: [local], videoGeneration: [], analysis: [] }
 
     const toolDef = createTranscribeTool({
       bridge: mockBridge(),

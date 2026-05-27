@@ -98,7 +98,11 @@ async function callTool(
 describe('createReplaceClipWithRegenerationTool', () => {
   it('reuses original prompt when new_prompt omitted; same provider + model preferred', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
 
@@ -141,7 +145,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('errors clearly when clip is not AI-generated and no new_prompt is provided', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge({
       clipInfo: {
         mediaId: 'media-real',
@@ -167,7 +175,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('accepts new_prompt for a non-AI clip and runs the regeneration', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge({
       clipInfo: {
         mediaId: 'media-real',
@@ -202,7 +214,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('prompt_modifier appends to the original prompt, preserving the subject (bug fix 2026-05-26)', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
 
@@ -228,7 +244,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('prompt_modifier on a non-AI clip errors with guidance to use new_prompt', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge({
       clipInfo: {
         mediaId: 'media-real',
@@ -256,7 +276,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('rejects when both new_prompt and prompt_modifier are passed', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
 
     const toolDef = createReplaceClipWithRegenerationTool({
@@ -278,7 +302,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('reuses the ORIGINAL model id even when the user asks for "more dramatic" via prompt_modifier (bug fix 2026-05-26)', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
 
@@ -307,7 +335,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
 
   it('prepends transcript VIDEO CONTEXT when one covers the clip range (§6.5.1)', async () => {
     const provider = mockProvider('fal')
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge } = recordingBridge({
       clipInfo: {
         mediaId: 'media-orig',
@@ -349,7 +381,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
     const provider = mockProvider('fal', true, async () => {
       throw new Error('fal regen exploded')
     })
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
 
     const toolDef = createReplaceClipWithRegenerationTool({
@@ -372,7 +408,11 @@ describe('createReplaceClipWithRegenerationTool', () => {
       ctx.signal.throwIfAborted()
       return { sourceUrl: '', modelUsed: '', durationSec: 0 }
     })
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
 
     const toolDef = createReplaceClipWithRegenerationTool({

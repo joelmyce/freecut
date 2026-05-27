@@ -67,7 +67,11 @@ async function callTool(toolDef: ReturnType<typeof createGenerateBrollTool>, arg
 describe('createGenerateBrollTool', () => {
   it('happy path: insert placeholder → generate → swap, returns final result', async () => {
     const provider = mockProvider(true)
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
 
@@ -113,7 +117,11 @@ describe('createGenerateBrollTool', () => {
 
   it('throws if end_seconds <= start_seconds', async () => {
     const provider = mockProvider(true)
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge } = recordingBridge()
     const toolDef = createGenerateBrollTool({
       bridge,
@@ -127,7 +135,11 @@ describe('createGenerateBrollTool', () => {
 
   it('passes aspect override into the provider', async () => {
     const provider = mockProvider(true)
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
 
@@ -144,7 +156,11 @@ describe('createGenerateBrollTool', () => {
     const provider = mockProvider(true, async () => {
       throw new Error('fal job failed')
     })
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
 
     const toolDef = createGenerateBrollTool({
@@ -169,7 +185,11 @@ describe('createGenerateBrollTool', () => {
       ctx.signal.throwIfAborted()
       return { sourceUrl: '', modelUsed: '', durationSec: 0 }
     })
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge, calls } = recordingBridge()
 
     const toolDef = createGenerateBrollTool({
@@ -188,7 +208,11 @@ describe('createGenerateBrollTool', () => {
 
   it('§6.5.1: prepends transcript VIDEO CONTEXT to the model prompt when the browser returns one', async () => {
     const provider = mockProvider(true)
-    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const providers: ProvidersBundle = {
+      transcription: [],
+      videoGeneration: [provider],
+      analysis: [],
+    }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
 
@@ -238,6 +262,7 @@ describe('createGenerateBrollTool', () => {
     const providers: ProvidersBundle = {
       transcription: [],
       videoGeneration: [mockProvider(false)],
+      analysis: [],
     }
     const { bridge } = recordingBridge()
     const toolDef = createGenerateBrollTool({

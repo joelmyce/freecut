@@ -6,6 +6,7 @@ import {
   swapGenerationPlaceholderHandler,
 } from './ai-generation'
 import { cutSilenceHandler } from './cut-silence'
+import { readClipVideoBytesHandler } from './read-clip-video-bytes'
 import { BrowserActionRegistry } from './registry'
 import { readTranscribableAudioHandler } from './read-transcribable-audio'
 import { readClipForRegenHandler, replaceClipWithPlaceholderHandler } from './regenerate-clip'
@@ -30,5 +31,6 @@ export function createDefaultBrowserActionRegistry(): BrowserActionRegistry {
   registry.register('replace-clip-with-placeholder', replaceClipWithPlaceholderHandler)
   registry.register('read-transcript-context-for-range', readTranscriptContextForRangeHandler)
   registry.register('cut-silence', cutSilenceHandler)
+  registry.register('read-clip-video-bytes', readClipVideoBytesHandler)
   return registry
 }
