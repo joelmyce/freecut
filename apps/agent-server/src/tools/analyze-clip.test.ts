@@ -12,6 +12,7 @@ const FIXTURE: VideoAnalysisResult = {
   subject: 'coffee cup',
   audioSummary: 'ambient piano',
   pace: 'slow',
+  hasOnScreenText: false,
   suggestedBrollPrompts: [
     'Slow drift across an empty café',
     'Steam rising from coffee',

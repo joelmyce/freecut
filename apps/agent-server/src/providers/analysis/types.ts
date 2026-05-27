@@ -56,6 +56,19 @@ export interface VideoAnalysisResult {
   audioSummary: string
   /** Editorial pace — "slow contemplative", "energetic", "frantic". */
   pace: string
+  /**
+   * True when the clip contains meaningful on-screen text the viewer is
+   * expected to read — UI labels, code, captions, subtitles burned into
+   * the source, slide titles, signs/storefronts, infographics, chat
+   * screenshots, screen recordings. Brand watermarks or incidental
+   * background text do NOT count.
+   *
+   * The agent uses this for deterministic routing: when the user asks for
+   * matched b-roll and `hasOnScreenText` is true, the right chain is
+   * `generate_image` → `animate_image` (legible text survives) rather
+   * than `generate_broll` (text-to-video models hallucinate glyph-soup).
+   */
+  hasOnScreenText: boolean
   /** 3 candidate b-roll prompts ready to feed `generate_broll` directly. */
   suggestedBrollPrompts: ReadonlyArray<string>
 }

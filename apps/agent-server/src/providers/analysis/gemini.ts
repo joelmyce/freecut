@@ -49,6 +49,7 @@ const ANALYSIS_RESPONSE_SCHEMA = {
     subject: { type: 'string' },
     audioSummary: { type: 'string' },
     pace: { type: 'string' },
+    hasOnScreenText: { type: 'boolean' },
     suggestedBrollPrompts: { type: 'array', items: { type: 'string' } },
   },
   required: [
@@ -60,6 +61,7 @@ const ANALYSIS_RESPONSE_SCHEMA = {
     'subject',
     'audioSummary',
     'pace',
+    'hasOnScreenText',
     'suggestedBrollPrompts',
   ],
 } as const
@@ -367,6 +369,7 @@ function buildAnalysisPrompt(
     'Return strict JSON matching the provided schema. No commentary outside the JSON.',
     "For `suggestedBrollPrompts`, propose three short prompts (≤25 words each) that would generate b-roll visually matching THIS clip — same lighting, same mood, same pace — without copying the clip's subject literally. The prompts must be ready to paste into a text-to-video model.",
     'For `colorPalette`, give 3-6 dominant colors as plain English names or hex codes.',
+    'For `hasOnScreenText`, return true ONLY if the clip contains meaningful text the viewer is expected to read — UI labels, code, captions, slide titles, signs, infographics, chat screenshots, screen recordings of apps. Return false for purely visual footage even if a tiny logo or distant background sign is present. Incidental brand watermarks do not count.',
     'Be specific. "golden hour" beats "warm light". "handheld push-in" beats "moving camera". "person at window" beats "human".',
   ].join('\n\n')
 }
@@ -409,6 +412,13 @@ function parseAnalysisResponse(rawJson: string): VideoAnalysisResult {
     }
     return value as string[]
   }
+  const requireBoolean = (key: string): boolean => {
+    const value = p[key]
+    if (typeof value !== 'boolean') {
+      throw new Error(`Gemini analysis response missing required boolean field: ${key}`)
+    }
+    return value
+  }
 
   return {
     visualDescription: requireString('visualDescription'),
@@ -419,6 +429,7 @@ function parseAnalysisResponse(rawJson: string): VideoAnalysisResult {
     subject: requireString('subject'),
     audioSummary: requireString('audioSummary'),
     pace: requireString('pace'),
+    hasOnScreenText: requireBoolean('hasOnScreenText'),
     suggestedBrollPrompts: requireStringArray('suggestedBrollPrompts'),
   }
 }

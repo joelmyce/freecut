@@ -46,6 +46,7 @@ const FIXTURE: VideoAnalysisResult = {
   subject: 'person at window',
   audioSummary: 'ambient piano, muted city traffic',
   pace: 'slow contemplative',
+  hasOnScreenText: false,
   suggestedBrollPrompts: [
     'Slow drift across an empty café in golden hour, muted earth tones',
     'Handheld push-in on rain-streaked window, soft piano underscore',
@@ -86,6 +87,7 @@ describe('GeminiVideoAnalysisProvider', () => {
     expect(result.visualDescription).toBe(FIXTURE.visualDescription)
     expect(result.suggestedBrollPrompts).toHaveLength(3)
     expect(result.colorPalette).toEqual(['amber', 'navy', 'cream'])
+    expect(result.hasOnScreenText).toBe(false)
 
     // Bridge was asked for the bytes only.
     expect(bridge.invokeBrowserAction).toHaveBeenCalledWith(
@@ -97,6 +99,69 @@ describe('GeminiVideoAnalysisProvider', () => {
     // URL includes the default model id.
     const url = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
     expect(url).toContain('gemini-3.5-flash')
+  })
+
+  it('round-trips hasOnScreenText=true for a screen-recording style clip', async () => {
+    const textHeavy: VideoAnalysisResult = {
+      ...FIXTURE,
+      visualDescription: 'Screen recording of VS Code editor with TypeScript source visible.',
+      subject: 'code editor',
+      hasOnScreenText: true,
+    }
+    const bridge = bridgeWithClip({
+      bytes: 'AAAA',
+      filename: 'screen.mp4',
+      mimeType: 'video/mp4',
+      durationSec: 6,
+    })
+    const fetchImpl = geminiSuccessFetch(textHeavy)
+    const provider = new GeminiVideoAnalysisProvider({
+      apiKey: 'k',
+      fetchImpl,
+      generateUrlTemplate: 'https://example.test/{model}:generateContent',
+    })
+
+    const result = await provider.analyze(
+      { clipId: 'item:abc' },
+      ctx(bridge, new AbortController().signal),
+    )
+
+    expect(result.hasOnScreenText).toBe(true)
+  })
+
+  it('throws when Gemini returns analysis JSON missing hasOnScreenText', async () => {
+    const bridge = bridgeWithClip({
+      bytes: 'AAAA',
+      filename: 'clip.mp4',
+      mimeType: 'video/mp4',
+      durationSec: 5,
+    })
+    const { hasOnScreenText: _omit, ...partial } = FIXTURE
+    void _omit
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: { parts: [{ text: JSON.stringify(partial) }] },
+                finishReason: 'STOP',
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    ) as unknown as typeof fetch
+
+    const provider = new GeminiVideoAnalysisProvider({
+      apiKey: 'k',
+      fetchImpl,
+      generateUrlTemplate: 'https://example.test/{model}:generateContent',
+    })
+
+    await expect(
+      provider.analyze({ clipId: 'item:abc' }, ctx(bridge, new AbortController().signal)),
+    ).rejects.toThrow(/required boolean field: hasOnScreenText/)
   })
 
   it('forwards start/end seconds through the bridge args', async () => {

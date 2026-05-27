@@ -15,6 +15,7 @@ function mockProvider(available: boolean): VideoAnalysisProvider {
       subject: '',
       audioSummary: '',
       pace: '',
+      hasOnScreenText: false,
       suggestedBrollPrompts: [],
     }),
   }
