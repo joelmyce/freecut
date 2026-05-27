@@ -5,10 +5,13 @@ import {
   removeGenerationPlaceholderHandler,
   swapGenerationPlaceholderHandler,
 } from './ai-generation'
+import { cutSilenceHandler } from './cut-silence'
 import { BrowserActionRegistry } from './registry'
 import { readTranscribableAudioHandler } from './read-transcribable-audio'
+import { readClipForRegenHandler, replaceClipWithPlaceholderHandler } from './regenerate-clip'
 import { saveTranscriptHandler } from './save-transcript'
 import { transcribeLocalHandler } from './transcribe-local'
+import { readTranscriptContextForRangeHandler } from './transcript-context'
 
 export { BrowserActionRegistry } from './registry'
 export type { BrowserActionHandler } from './types'
@@ -23,5 +26,9 @@ export function createDefaultBrowserActionRegistry(): BrowserActionRegistry {
   registry.register('swap-generation-placeholder-with-url', swapGenerationPlaceholderHandler)
   registry.register('remove-generation-placeholder', removeGenerationPlaceholderHandler)
   registry.register('mark-generation-placeholder-error', markGenerationPlaceholderErrorHandler)
+  registry.register('read-clip-for-regen', readClipForRegenHandler)
+  registry.register('replace-clip-with-placeholder', replaceClipWithPlaceholderHandler)
+  registry.register('read-transcript-context-for-range', readTranscriptContextForRangeHandler)
+  registry.register('cut-silence', cutSilenceHandler)
   return registry
 }

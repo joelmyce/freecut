@@ -7,5 +7,17 @@ export {
   swapPlaceholderWithMedia,
   removeGenerationPlaceholder,
   markGenerationPlaceholderError,
+  replaceClipWithPlaceholder,
 } from '@/features/timeline/stores/actions/ai-generation-actions'
 export { buildMediaTimelineItem } from '@/features/timeline/utils/media-timeline-item-builder'
+export {
+  removeSilenceFromItems,
+  type RemoveSilenceRange,
+  type RemoveSilenceResult,
+} from '@/features/timeline/stores/actions/item-edit-actions'
+export {
+  analyzeSilenceForItems,
+  DEFAULT_SILENCE_REMOVAL_SETTINGS,
+  type SilenceRemovalSettings,
+  type SilenceRangesByMediaId,
+} from '@/features/timeline/utils/silence-removal-preview'

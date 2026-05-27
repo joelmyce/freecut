@@ -16,10 +16,10 @@ const inputSchema = {
       'The mediaId of the clip to transcribe. Pull this from the timeline summary — every clip cell shows its id in parentheses (e.g. "(clip_a8)"). For video/audio items the mediaId IS the asset id.',
     ),
   provider: z
-    .enum(['auto', 'local', 'openai'])
+    .enum(['auto', 'local', 'openai', 'gemini'])
     .optional()
     .describe(
-      'Which provider to use. "auto" (default) picks local for clips under 30 minutes and OpenAI for longer clips when OPENAI_API_KEY is set. Force "local" for browser-side whisper or "openai" for the cloud API.',
+      'Which provider to use. "auto" (default) picks local for clips under 30 minutes and OpenAI for longer clips when OPENAI_API_KEY is set. "gemini" routes to Gemini 3.5 Flash — opt-in only, never picked by auto. Engage Gemini ONLY when the user explicitly asks ("transcribe X using gemini"); requires GEMINI_API_KEY.',
     ),
   language: z
     .string()

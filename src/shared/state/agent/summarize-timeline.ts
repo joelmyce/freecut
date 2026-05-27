@@ -26,8 +26,19 @@ export interface TimelineAgentSnapshot {
   selection: { itemIds: ReadonlyArray<string> }
   playback: { currentFrame: number }
   markers: { inPoint: number | null; outPoint: number | null }
-  mediaById: Readonly<Record<string, { fileName: string } | undefined>>
+  mediaById: Readonly<Record<string, { fileName: string; aiGenerated?: boolean } | undefined>>
   pendingGenerations: number
+  /**
+   * Soft hints (§6.5.2.3) the agent can use to disambiguate phrases like
+   * "this clip" / "right here" without an extra tool call. Optional so
+   * older callers / tests that don't supply them still compile.
+   */
+  uiFlags?: {
+    /** Item id under the current playhead, or null when no clip overlaps. */
+    playheadInsideClipId: string | null
+    /** True iff the first selected clip's media has aiGenerated metadata. */
+    selectedClipIsAiGenerated: boolean
+  }
 }
 
 const MAX_ITEMS_PER_TRACK_LINE = 20
@@ -53,7 +64,23 @@ export function summarizeTimelineForAgent(snapshot: TimelineAgentSnapshot): stri
   lines.push(renderPlayheadLine(snapshot))
   lines.push(`Pending generations: ${snapshot.pendingGenerations}`)
 
+  const flagsLine = renderUiFlagsLine(snapshot)
+  if (flagsLine !== null) lines.push(flagsLine)
+
   return lines.join('\n')
+}
+
+function renderUiFlagsLine(snapshot: TimelineAgentSnapshot): string | null {
+  if (!snapshot.uiFlags) return null
+  const parts: string[] = []
+  if (snapshot.uiFlags.playheadInsideClipId) {
+    parts.push(`playheadInsideClipId=item:${snapshot.uiFlags.playheadInsideClipId}`)
+  }
+  if (snapshot.uiFlags.selectedClipIsAiGenerated) {
+    parts.push('selectedClipIsAiGenerated=true')
+  }
+  if (parts.length === 0) return null
+  return `Context flags: ${parts.join(', ')}`
 }
 
 function renderHeader(snapshot: TimelineAgentSnapshot): string {

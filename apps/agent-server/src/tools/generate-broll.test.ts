@@ -40,6 +40,12 @@ function recordingBridge() {
     ],
     ['remove-generation-placeholder', {}],
     ['mark-generation-placeholder-error', {}],
+    // §6.5.1 transcript grounding lookup. Default to "no transcript" so
+    // existing tests assert the plain-prompt path; specific tests override.
+    [
+      'read-transcript-context-for-range',
+      { text: null, sourceMediaIds: [], startSeconds: 0, endSeconds: 0 },
+    ],
   ])
   const bridge: BrowserActionBridge = {
     invokeBrowserAction: async <T = unknown>(
@@ -88,11 +94,12 @@ describe('createGenerateBrollTool', () => {
     expect(parsed.cost).toMatchObject({ amount: 0.4, currency: 'USD' })
 
     expect(calls.map((c) => c.action)).toEqual([
+      'read-transcript-context-for-range',
       'insert-generation-placeholder',
       'swap-generation-placeholder-with-url',
     ])
-    const insertArgs = calls[0]?.args as Record<string, unknown>
-    expect(insertArgs).toMatchObject({
+    const insertCall = calls.find((c) => c.action === 'insert-generation-placeholder')
+    expect(insertCall?.args).toMatchObject({
       startSeconds: 12,
       endSeconds: 18,
       prompt: 'city skyline',
@@ -177,6 +184,54 @@ describe('createGenerateBrollTool', () => {
     expect(actions).toContain('remove-generation-placeholder')
     expect(actions).not.toContain('swap-generation-placeholder-with-url')
     expect(actions).not.toContain('mark-generation-placeholder-error')
+  })
+
+  it('§6.5.1: prepends transcript VIDEO CONTEXT to the model prompt when the browser returns one', async () => {
+    const provider = mockProvider(true)
+    const providers: ProvidersBundle = { transcription: [], videoGeneration: [provider] }
+    const { bridge } = recordingBridge()
+    const generateSpy = vi.spyOn(provider, 'generate')
+
+    // Override the default no-transcript response with real text.
+    const ctxResponse = {
+      text: 'we ship every Friday and recap on Monday',
+      sourceMediaIds: ['m1'],
+      startSeconds: 12,
+      endSeconds: 18,
+    }
+    const wrappedBridge = {
+      invokeBrowserAction: async <T = unknown>(
+        action: string,
+        args: unknown,
+        signal: AbortSignal,
+      ): Promise<T> => {
+        if (action === 'read-transcript-context-for-range') return ctxResponse as T
+        return bridge.invokeBrowserAction<T>(action, args, signal)
+      },
+    }
+
+    const toolDef = createGenerateBrollTool({
+      bridge: wrappedBridge,
+      providers,
+      abortSignal: new AbortController().signal,
+    })
+
+    const result = await callTool(toolDef, {
+      prompt: 'desk in a startup office',
+      start_seconds: 12,
+      end_seconds: 18,
+    })
+    const parsed = JSON.parse((result.content[0] as { text: string }).text)
+    expect(parsed.usedTranscriptContext).toBe(true)
+
+    const generatedPrompt = generateSpy.mock.calls[0]?.[0].prompt as string
+    expect(generatedPrompt).toContain('VIDEO CONTEXT')
+    expect(generatedPrompt).toContain('we ship every Friday and recap on Monday')
+    expect(generatedPrompt).toContain('desk in a startup office')
+    // The user's prompt must appear after the context block, not in front of it.
+    expect(generatedPrompt.indexOf('VIDEO CONTEXT')).toBeLessThan(
+      generatedPrompt.indexOf('desk in a startup office'),
+    )
   })
 
   it('throws when no video provider is available', async () => {

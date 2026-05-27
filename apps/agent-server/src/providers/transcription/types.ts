@@ -1,8 +1,8 @@
 import type { ProviderContext } from '../types.ts'
 
-export type TranscriptionProviderId = 'local-whisper' | 'openai-whisper'
+export type TranscriptionProviderId = 'local-whisper' | 'openai-whisper' | 'gemini-flash'
 
-export type TranscriptionStrategy = 'auto' | 'local' | 'openai'
+export type TranscriptionStrategy = 'auto' | 'local' | 'openai' | 'gemini'
 
 export interface TranscriptionInput {
   assetId: string

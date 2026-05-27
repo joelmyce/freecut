@@ -340,4 +340,32 @@ describe('summarizeTimelineForAgent', () => {
     const output = summarizeTimelineForAgent(baseSnapshot({ pendingGenerations: 3 }))
     expect(output).toContain('Pending generations: 3')
   })
+
+  it('§6.5.2.3: renders Context flags line with playhead + ai-generated hints', () => {
+    const output = summarizeTimelineForAgent(
+      baseSnapshot({
+        uiFlags: {
+          playheadInsideClipId: 'clip_a',
+          selectedClipIsAiGenerated: true,
+        },
+      }),
+    )
+    expect(output).toContain(
+      'Context flags: playheadInsideClipId=item:clip_a, selectedClipIsAiGenerated=true',
+    )
+  })
+
+  it('§6.5.2.3: omits Context flags line when both flags are empty', () => {
+    const output = summarizeTimelineForAgent(
+      baseSnapshot({
+        uiFlags: { playheadInsideClipId: null, selectedClipIsAiGenerated: false },
+      }),
+    )
+    expect(output).not.toContain('Context flags:')
+  })
+
+  it('§6.5.2.3: omits Context flags line entirely when uiFlags is undefined', () => {
+    const output = summarizeTimelineForAgent(baseSnapshot({ uiFlags: undefined }))
+    expect(output).not.toContain('Context flags:')
+  })
 })

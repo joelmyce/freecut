@@ -37,10 +37,41 @@ export function captureTimelineAgentSnapshot(): TimelineAgentSnapshot {
       ? (composition.breadcrumbs.at(-1)?.label ?? null)
       : null
 
-  const mediaById: Record<string, { fileName: string } | undefined> = {}
+  const mediaById: Record<string, { fileName: string; aiGenerated?: boolean } | undefined> = {}
   for (const [id, meta] of Object.entries(media.mediaById)) {
-    if (meta) mediaById[id] = { fileName: meta.fileName }
+    if (meta) {
+      mediaById[id] = {
+        fileName: meta.fileName,
+        aiGenerated: meta.aiGenerated ? true : undefined,
+      }
+    }
   }
+
+  // §6.5.2.3 — UI-state flags. Lets the agent infer "this clip" / "right here"
+  // without an extra tool call. Pure derived state from stores we already have.
+  const playheadInsideClipId =
+    items.find(
+      (item) =>
+        playback.currentFrame >= item.from &&
+        playback.currentFrame < item.from + item.durationInFrames &&
+        item.type !== 'shape' &&
+        item.type !== 'adjustment',
+    )?.id ?? null
+
+  const firstSelectedId = selection.selectedItemIds[0]
+  const firstSelected = firstSelectedId
+    ? items.find((item) => item.id === firstSelectedId)
+    : undefined
+  const selectedMediaId =
+    firstSelected &&
+    (firstSelected.type === 'video' ||
+      firstSelected.type === 'audio' ||
+      firstSelected.type === 'image')
+      ? firstSelected.mediaId
+      : undefined
+  const selectedClipIsAiGenerated = selectedMediaId
+    ? Boolean(media.mediaById[selectedMediaId]?.aiGenerated)
+    : false
 
   return {
     fps,
@@ -56,5 +87,9 @@ export function captureTimelineAgentSnapshot(): TimelineAgentSnapshot {
     markers: { inPoint: markers.inPoint, outPoint: markers.outPoint },
     mediaById,
     pendingGenerations: media.transcriptProgress.size,
+    uiFlags: {
+      playheadInsideClipId,
+      selectedClipIsAiGenerated,
+    },
   }
 }

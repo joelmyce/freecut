@@ -105,7 +105,10 @@ async function handleClientMessage(
           abortSignal: abort.signal,
           bridge: state.bridge,
           providers,
-          onMessage: (event) => forwardAgentEvent(state.socket, turnId, event),
+          onMessage: (event) => {
+            logAgentEvent(turnId, event, log)
+            forwardAgentEvent(state.socket, turnId, event)
+          },
         })
       } finally {
         state.activeTurnAborts.delete(turnId)
@@ -162,6 +165,53 @@ function forwardAgentEvent(socket: WebSocket, turnId: string, event: AgentEvent)
     case 'error':
       sendToClient(socket, { type: 'error', message: event.message, turnId })
       return
+  }
+}
+
+/**
+ * Stdout diagnostics for every agent event. Tool calls and tool results land
+ * in `npm run dev:agent` output so post-mortems don't require digging through
+ * the browser's chat-panel state. Args + results are JSON-stringified with
+ * a length cap so long base64 payloads (e.g. audio bytes for transcription)
+ * don't flood the log.
+ */
+function logAgentEvent(
+  turnId: string,
+  event: AgentEvent,
+  log: (m: string, meta?: Record<string, unknown>) => void,
+): void {
+  const MAX_PAYLOAD_LEN = 600
+  switch (event.kind) {
+    case 'tool-call':
+      log('tool-call', {
+        turnId,
+        toolName: event.toolName,
+        args: truncateForLog(event.args, MAX_PAYLOAD_LEN),
+      })
+      return
+    case 'tool-result':
+      log('tool-result', {
+        turnId,
+        callId: event.callId,
+        isError: event.isError,
+        result: truncateForLog(event.result, MAX_PAYLOAD_LEN),
+      })
+      return
+    case 'error':
+      log('agent error', { turnId, message: event.message })
+      return
+    default:
+      return
+  }
+}
+
+function truncateForLog(value: unknown, maxLen: number): string {
+  try {
+    const json = JSON.stringify(value)
+    if (json.length <= maxLen) return json
+    return json.slice(0, maxLen - 1) + '…'
+  } catch {
+    return '[unserializable]'
   }
 }
 

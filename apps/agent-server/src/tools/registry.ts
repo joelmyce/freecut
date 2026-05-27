@@ -2,7 +2,9 @@ import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
 import { echoTool } from './_stub.ts'
 import { createAddSubtitlesTool } from './add-subtitles.ts'
+import { createCutSilenceTool } from './cut-silence.ts'
 import { createGenerateBrollTool } from './generate-broll.ts'
+import { createReplaceClipWithRegenerationTool } from './replace-clip-with-regeneration.ts'
 import { createTranscribeTool } from './transcribe.ts'
 
 export const TOOL_MCP_SERVER_NAME = 'freecut'
@@ -22,6 +24,8 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
       createTranscribeTool(options),
       createAddSubtitlesTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
       createGenerateBrollTool(options),
+      createReplaceClipWithRegenerationTool(options),
+      createCutSilenceTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
     ],
   })
 }
@@ -35,4 +39,6 @@ export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__transcribe`,
   `mcp__${TOOL_MCP_SERVER_NAME}__add_subtitles`,
   `mcp__${TOOL_MCP_SERVER_NAME}__generate_broll`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__replace_clip_with_regeneration`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__cut_silence`,
 ]

@@ -3,7 +3,11 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { startBridgeServer } from './bridge/server.ts'
 import { DEFAULT_BRIDGE_PORT } from './bridge/protocol.ts'
-import { LocalWhisperBrowserProxy, OpenAIWhisperProvider } from './providers/transcription/index.ts'
+import {
+  GeminiTranscriptionProvider,
+  LocalWhisperBrowserProxy,
+  OpenAIWhisperProvider,
+} from './providers/transcription/index.ts'
 import { FalVideoProvider } from './providers/video/index.ts'
 import type { ProvidersBundle } from './providers/index.ts'
 
@@ -23,9 +27,10 @@ const log = (message: string, meta?: Record<string, unknown>) => {
 
 function buildProviders(): ProvidersBundle {
   const openai = new OpenAIWhisperProvider({ apiKey: process.env.OPENAI_API_KEY })
+  const gemini = new GeminiTranscriptionProvider({ apiKey: process.env.GEMINI_API_KEY })
   const fal = new FalVideoProvider({ apiKey: process.env.FAL_API_KEY })
   return {
-    transcription: [new LocalWhisperBrowserProxy(), openai],
+    transcription: [new LocalWhisperBrowserProxy(), openai, gemini],
     videoGeneration: [fal],
   }
 }

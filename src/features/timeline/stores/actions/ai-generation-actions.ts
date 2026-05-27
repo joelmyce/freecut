@@ -19,8 +19,10 @@ import type { ShapeItem, TimelineItem } from '@/types/timeline'
 import type { TimelineSnapshot } from '../commands/types'
 import { captureSnapshot } from '../commands/snapshot'
 import { useItemsStore } from '../items-store'
+import { useKeyframesStore } from '../keyframes-store'
 import { useTimelineCommandStore } from '../timeline-command-store'
 import { useTimelineSettingsStore } from '../timeline-settings-store'
+import { useTransitionsStore } from '../transitions-store'
 import { getLogger } from './shared'
 
 /** Pre-generation snapshot keyed by placeholder id. Cleared on swap/remove. */
@@ -74,6 +76,93 @@ export function insertGenerationPlaceholder(params: InsertGenerationPlaceholderP
 
   getLogger().debug(`[ai-gen] inserted placeholder ${id} for prompt "${params.prompt}"`)
   return id
+}
+
+export interface ReplaceClipWithPlaceholderParams {
+  /** Existing timeline item id whose range becomes the placeholder window. */
+  clipId: string
+  /** Prompt shown on the placeholder. */
+  prompt: string
+  providerId?: string
+  modelId?: string
+}
+
+export interface ReplaceClipWithPlaceholderResult {
+  placeholderId: string
+  trackId: string
+  from: number
+  durationInFrames: number
+}
+
+/**
+ * Replace an existing timeline clip with a generation placeholder occupying
+ * the same track/time window. The original clip is removed and a placeholder
+ * inserted in its place. The pre-mutation snapshot (which still contains the
+ * original clip + its transitions/keyframes) is stashed under the placeholder
+ * id, so a later {@link swapPlaceholderWithMedia} call lets a single Ctrl+Z
+ * restore the original clip — matching M3's "one Ctrl+Z rewinds past the
+ * generation" semantics.
+ *
+ * Cleanup of the original clip's transitions and keyframes happens inline so
+ * the live store stays consistent during the wait; the snapshot still has
+ * them, so undo restores everything.
+ *
+ * Mutates stores directly — does NOT add an undo entry. The eventual swap
+ * (or removal) is what shows up in the undo stack.
+ */
+export function replaceClipWithPlaceholder(
+  params: ReplaceClipWithPlaceholderParams,
+): ReplaceClipWithPlaceholderResult {
+  const items = useItemsStore.getState().items
+  const original = items.find((i) => i.id === params.clipId)
+  if (!original) {
+    throw new Error(`replaceClipWithPlaceholder: clip ${params.clipId} not found`)
+  }
+
+  const beforeSnapshot = captureSnapshot()
+
+  const placeholderId = crypto.randomUUID()
+  const placeholder: ShapeItem = {
+    id: placeholderId,
+    trackId: original.trackId,
+    from: original.from,
+    durationInFrames: original.durationInFrames,
+    label: `Regenerating: ${truncate(params.prompt)}`,
+    type: 'shape',
+    shapeType: 'rectangle',
+    fillColor: '#0F172A',
+    strokeColor: '#3B82F6',
+    strokeWidth: 2,
+    cornerRadius: 8,
+    aiPlaceholder: {
+      prompt: params.prompt,
+      status: 'generating',
+      providerId: params.providerId,
+      modelId: params.modelId,
+    },
+  }
+
+  pendingSnapshots.set(placeholderId, beforeSnapshot)
+
+  const itemsStore = useItemsStore.getState()
+  itemsStore._removeItems([original.id])
+  itemsStore._addItem(placeholder)
+  // Strip the original clip's transitions/keyframes so the placeholder doesn't
+  // try to inherit them. They survive in beforeSnapshot, so undo restores them.
+  useTransitionsStore.getState()._removeTransitionsForItems([original.id])
+  useKeyframesStore.getState()._removeKeyframesForItems([original.id])
+  useTimelineSettingsStore.getState().markDirty()
+
+  getLogger().debug(
+    `[ai-gen] replaced clip ${original.id} with placeholder ${placeholderId} for regen`,
+  )
+
+  return {
+    placeholderId,
+    trackId: placeholder.trackId,
+    from: placeholder.from,
+    durationInFrames: placeholder.durationInFrames,
+  }
 }
 
 /**

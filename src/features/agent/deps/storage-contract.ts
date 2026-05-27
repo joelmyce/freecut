@@ -4,4 +4,4 @@ export {
   type AiOutput,
   type GenerationPayload,
 } from '@/infrastructure/storage/workspace-fs/ai-outputs'
-export { updateMedia } from '@/infrastructure/storage'
+export { getTranscript, updateMedia } from '@/infrastructure/storage'

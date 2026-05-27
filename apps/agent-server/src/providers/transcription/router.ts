@@ -33,6 +33,19 @@ export function pickTranscriptionProvider(
     return { provider: openai, reason: 'explicit strategy: openai' }
   }
 
+  if (strategy === 'gemini') {
+    const gemini = findAvailable('gemini-flash')
+    if (!gemini) {
+      throw new Error(
+        'Gemini transcription provider is not available (missing GEMINI_API_KEY in .env)',
+      )
+    }
+    return { provider: gemini, reason: 'explicit strategy: gemini' }
+  }
+
+  // PHASE-1-PLAN.md §6.5.4: Gemini is deliberately excluded from auto routing.
+  // The user has to ask for it by name. Local-first / OpenAI-fallback remains
+  // the default behavior for `auto`.
   const isLong = (input.durationSec ?? 0) >= LONG_CLIP_THRESHOLD_SEC
   if (isLong) {
     const openai = findAvailable('openai-whisper')

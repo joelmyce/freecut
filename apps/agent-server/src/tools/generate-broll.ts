@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
 import { pickVideoGenerationProvider } from '../providers/video/router.ts'
 import type { VideoAspectRatio, VideoGenerationStrategy } from '../providers/video/types.ts'
+import { buildTranscriptContextBlock } from './prompt-grounding.ts'
 
 export interface CreateGenerateBrollToolOptions {
   bridge: BrowserActionBridge
@@ -23,6 +24,13 @@ interface SwapPlaceholderResult {
   trackId: string
   from: number
   durationInFrames: number
+}
+
+interface TranscriptContextResult {
+  text: string | null
+  sourceMediaIds: string[]
+  startSeconds: number
+  endSeconds: number
 }
 
 const inputSchema = {
@@ -83,6 +91,42 @@ export function createGenerateBrollTool(options: CreateGenerateBrollToolOptions)
 
       const aspect: VideoAspectRatio = args.aspect ?? '16:9'
 
+      // §6.5.1: transcript-grounded prompt. Best-effort — if a transcript
+      // covers the requested window, prepend it as VIDEO CONTEXT so the
+      // rendered visual matches what's being said. The browser handler
+      // returns `text: null` when nothing overlaps; we fall back to the
+      // plain prompt in that case.
+      let groundedPrompt = prompt
+      let transcriptContextUsed = false
+      try {
+        const ctx = await options.bridge.invokeBrowserAction<TranscriptContextResult>(
+          'read-transcript-context-for-range',
+          { startSeconds: start_seconds, endSeconds: end_seconds },
+          options.abortSignal,
+        )
+        if (ctx.text) {
+          groundedPrompt =
+            buildTranscriptContextBlock({
+              text: ctx.text,
+              sourceStartSec: ctx.startSeconds,
+              sourceEndSec: ctx.endSeconds,
+            }) +
+            '\n\n' +
+            prompt
+          transcriptContextUsed = true
+        }
+      } catch (err) {
+        // Non-fatal — transcript grounding is opportunistic. Continue with
+        // the plain prompt rather than failing the whole generation.
+        const msg = err instanceof Error ? err.message : String(err)
+        if (!options.abortSignal.aborted) {
+          // Don't swallow abort errors — let them propagate via the outer try.
+          process.stderr.write(`[generate_broll] transcript grounding failed: ${msg}\n`)
+        } else {
+          throw err
+        }
+      }
+
       // 1) Insert placeholder.
       const placeholder = await options.bridge.invokeBrowserAction<InsertPlaceholderResult>(
         'insert-generation-placeholder',
@@ -101,7 +145,7 @@ export function createGenerateBrollTool(options: CreateGenerateBrollToolOptions)
       //    the placeholder in the catch and re-throw.
       try {
         const generation = await provider.generate(
-          { prompt, aspect, targetDurationSec, model: args.model },
+          { prompt: groundedPrompt, aspect, targetDurationSec, model: args.model },
           { bridge: options.bridge, signal: options.abortSignal },
         )
 
@@ -129,6 +173,7 @@ export function createGenerateBrollTool(options: CreateGenerateBrollToolOptions)
           cost: generation.cost,
           durationSec: generation.durationSec,
           routingReason,
+          usedTranscriptContext: transcriptContextUsed,
         }
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],

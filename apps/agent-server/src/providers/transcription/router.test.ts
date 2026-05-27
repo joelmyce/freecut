@@ -55,6 +55,53 @@ describe('pickTranscriptionProvider — explicit strategy', () => {
   })
 })
 
+describe('pickTranscriptionProvider — gemini (opt-in)', () => {
+  const withGemini: ReadonlyArray<TranscriptionProvider> = [
+    mockProvider('local-whisper', true),
+    mockProvider('openai-whisper', true),
+    mockProvider('gemini-flash', true),
+  ]
+  const withoutGemini: ReadonlyArray<TranscriptionProvider> = [
+    mockProvider('local-whisper', true),
+    mockProvider('openai-whisper', true),
+    mockProvider('gemini-flash', false),
+  ]
+
+  it('returns gemini when "gemini" is requested and available', () => {
+    const result = pickTranscriptionProvider(withGemini, 'gemini', { assetId: 'm1' })
+    expect(result.provider.id).toBe('gemini-flash')
+    expect(result.reason).toMatch(/explicit/i)
+  })
+
+  it('throws when "gemini" is requested but unavailable (missing GEMINI_API_KEY)', () => {
+    expect(() => pickTranscriptionProvider(withoutGemini, 'gemini', { assetId: 'm1' })).toThrow(
+      /GEMINI_API_KEY/,
+    )
+  })
+
+  it('NEVER picks gemini under auto, even when it is the only available provider for a long clip', () => {
+    const geminiOnly: ReadonlyArray<TranscriptionProvider> = [
+      mockProvider('local-whisper', false),
+      mockProvider('openai-whisper', false),
+      mockProvider('gemini-flash', true),
+    ]
+    expect(() =>
+      pickTranscriptionProvider(geminiOnly, 'auto', {
+        assetId: 'm1',
+        durationSec: LONG_CLIP_THRESHOLD_SEC + 1,
+      }),
+    ).toThrow(/no transcription provider/i)
+  })
+
+  it('auto prefers local/openai even when gemini is available', () => {
+    const result = pickTranscriptionProvider(withGemini, 'auto', {
+      assetId: 'm1',
+      durationSec: 60,
+    })
+    expect(result.provider.id).toBe('local-whisper')
+  })
+})
+
 describe('pickTranscriptionProvider — auto strategy', () => {
   it('picks local for short clips when both providers are available', () => {
     const result = pickTranscriptionProvider(both, 'auto', {
