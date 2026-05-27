@@ -99,6 +99,17 @@ export interface MediaMetadata {
     embedding?: number[]
     palette?: Array<{ l: number; a: number; b: number; weight: number }>
   }>
+  /**
+   * Set when this media was produced by an AI generation tool (e.g. fal
+   * b-roll via {@link generate_broll}). Surfaces as a badge on the media
+   * library card and feeds the regeneration recovery flow.
+   */
+  aiGenerated?: {
+    provider: string
+    model: string
+    prompt: string
+    generatedAt: number
+  }
   createdAt: number
   updatedAt: number
 }

@@ -404,6 +404,15 @@ const newStore: MediaLibraryStoreApi =
           })
         },
 
+        markMediaAiGenerated: (mediaId, info) => {
+          set((state) => {
+            const mediaItems = state.mediaItems.map((item) =>
+              item.id === mediaId ? { ...item, aiGenerated: info, updatedAt: Date.now() } : item,
+            )
+            return { mediaItems }
+          })
+        },
+
         beginAnalysisRun: (count) => {
           if (count <= 0) return
           set((state) => {

@@ -210,6 +210,8 @@ export interface MediaLibraryActions {
   // AI captioning
   setTaggingMedia: (mediaId: string, active: boolean) => void
   updateMediaCaptions: (mediaId: string, captions: NonNullable<MediaMetadata['aiCaptions']>) => void
+  /** Mark a media item as AI-generated. Updates in-memory state only — persist with `updateMedia` separately. */
+  markMediaAiGenerated: (mediaId: string, info: NonNullable<MediaMetadata['aiGenerated']>) => void
 
   /** Start (or merge into) an analysis run — adds `count` to `total`. */
   beginAnalysisRun: (count: number) => void

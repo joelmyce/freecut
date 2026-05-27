@@ -23,6 +23,7 @@ import {
   Play,
   Square,
   Sparkles,
+  Wand2,
 } from 'lucide-react'
 import {
   ContextMenu,
@@ -381,6 +382,7 @@ export const MediaCard = memo(function MediaCard({
   const isTagging = useMediaLibraryStore((s) => s.taggingMediaIds.has(media.id))
   const isTaggable = mediaType === 'video' || mediaType === 'image'
   const hasCaptions = (media.aiCaptions?.length ?? 0) > 0
+  const isAiGenerated = Boolean(media.aiGenerated)
   const [audioPlaying, setAudioPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const thumbnailRef = useRef<HTMLImageElement>(null)
@@ -1430,6 +1432,14 @@ export const MediaCard = memo(function MediaCard({
                       title={t('media.card.aiCaptionsCount', { count: media.aiCaptions!.length })}
                     >
                       <Sparkles className="w-2.5 h-2.5" />
+                    </div>
+                  )}
+                  {!isBroken && isAiGenerated && (
+                    <div
+                      className="p-0.5 rounded bg-indigo-500/90 text-white pointer-events-none"
+                      title={`AI-generated · ${media.aiGenerated!.provider} · "${media.aiGenerated!.prompt}"`}
+                    >
+                      <Wand2 className="w-2.5 h-2.5" />
                     </div>
                   )}
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity">
