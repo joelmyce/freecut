@@ -72,6 +72,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -123,6 +124,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge } = recordingBridge()
     const toolDef = createGenerateBrollTool({
@@ -142,6 +144,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -164,6 +167,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
 
@@ -194,6 +198,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
 
@@ -218,6 +223,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -270,6 +276,7 @@ describe('createGenerateBrollTool', () => {
       videoGeneration: [mockProvider(false)],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge } = recordingBridge()
     const toolDef = createGenerateBrollTool({

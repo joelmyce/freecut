@@ -42,6 +42,7 @@ describe('createTranscribeTool', () => {
       videoGeneration: [],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const transcribeSpy = vi.spyOn(local, 'transcribe')
 
@@ -75,6 +76,7 @@ describe('createTranscribeTool', () => {
       videoGeneration: [],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const localSpy = vi.spyOn(local, 'transcribe')
     const openaiSpy = vi.spyOn(openai, 'transcribe')
@@ -98,6 +100,7 @@ describe('createTranscribeTool', () => {
       videoGeneration: [],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
 
     const toolDef = createTranscribeTool({
@@ -122,6 +125,7 @@ describe('createTranscribeTool', () => {
       videoGeneration: [],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const controller = new AbortController()
 
@@ -146,6 +150,7 @@ describe('createTranscribeTool', () => {
       videoGeneration: [],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
 
     const toolDef = createTranscribeTool({

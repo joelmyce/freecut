@@ -103,6 +103,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -151,6 +152,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge({
       clipInfo: {
@@ -182,6 +184,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge({
       clipInfo: {
@@ -222,6 +225,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -253,6 +257,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge({
       clipInfo: {
@@ -286,6 +291,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
 
@@ -313,6 +319,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -347,6 +354,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge } = recordingBridge({
       clipInfo: {
@@ -394,6 +402,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
 
@@ -422,6 +431,7 @@ describe('createReplaceClipWithRegenerationTool', () => {
       videoGeneration: [provider],
       analysis: [],
       imageGeneration: [],
+      gifSearch: [],
     }
     const { bridge, calls } = recordingBridge()
 
