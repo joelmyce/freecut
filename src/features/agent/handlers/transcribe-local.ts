@@ -34,6 +34,13 @@ export const transcribeLocalHandler: BrowserActionHandler = async (rawArgs, sign
   try {
     const transcript = await mediaTranscriptionService.transcribeMedia(args.mediaId, {
       language: args.language,
+      // `autoDetectLanguage: true` makes the service skip the user's
+      // settings.defaultWhisperLanguage fallback so agent-driven transcribes
+      // always auto-detect the source language when the user didn't name
+      // one. Without this flag, a user who once picked English in the
+      // Transcribe dialog would silently force English on every agent call,
+      // which is the bug we are fixing.
+      autoDetectLanguage: true,
       // model + quantization are best left at the service's defaults; the
       // SDK-strict `MediaTranscriptModel` enum doesn't match arbitrary
       // agent-supplied model strings. Forward language only.

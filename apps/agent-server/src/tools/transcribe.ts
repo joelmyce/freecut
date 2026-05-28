@@ -24,7 +24,9 @@ const inputSchema = {
   language: z
     .string()
     .optional()
-    .describe('Optional ISO language code (e.g. "en", "es", "ja"). Omit to auto-detect.'),
+    .describe(
+      'Optional ISO language code (e.g. "en", "es", "ja"). **Omit by default** — Whisper auto-detects the source language and preserves it (the transcript stays in the original language). Only pass a code when the user EXPLICITLY names a target language ("transcribe in Spanish", "force English"). Never pass "en" as a defensive default — that would force English output even on a Spanish or Japanese clip.',
+    ),
 }
 
 export function createTranscribeTool(options: CreateTranscribeToolOptions) {

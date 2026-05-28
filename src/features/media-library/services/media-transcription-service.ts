@@ -97,6 +97,15 @@ interface TranscriptionRequestOptions {
   quantization?: TranscribeOptions['quantization']
   onProgress?: TranscribeOptions['onProgress']
   onQueueStatusChange?: (state: QueueState) => void
+  /**
+   * When true, the service uses `language` verbatim (including `undefined`
+   * which triggers Whisper's auto-detect) and DOES NOT fall back to the
+   * user's `settings.defaultWhisperLanguage`. The agent path sets this so
+   * the user's manual-dialog default doesn't leak into agent-driven
+   * transcribes — those should always auto-detect when no language is
+   * specified, regardless of what the user picked in the Transcribe dialog.
+   */
+  autoDetectLanguage?: boolean
 }
 
 interface QueuedTranscriptionListener {
@@ -243,7 +252,12 @@ class MediaTranscriptionService {
     const model = options.model ?? settings.defaultWhisperModel ?? DEFAULT_MODEL
     const quantization =
       options.quantization ?? settings.defaultWhisperQuantization ?? DEFAULT_QUANTIZATION
-    const language = normalizeWhisperLanguage(options.language ?? settings.defaultWhisperLanguage)
+    // Agent path opts out of the UI-default fallback by setting
+    // `autoDetectLanguage: true` — the user's UI default is meant for the
+    // manual Transcribe dialog, not for agent-driven calls.
+    const language = options.autoDetectLanguage
+      ? normalizeWhisperLanguage(options.language)
+      : normalizeWhisperLanguage(options.language ?? settings.defaultWhisperLanguage)
     const requestKey = `${mediaId}:${model}:${quantization}:${language ?? 'auto'}`
     const listener: QueuedTranscriptionListener = {
       onProgress: options.onProgress,
