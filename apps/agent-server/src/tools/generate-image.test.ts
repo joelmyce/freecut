@@ -68,6 +68,7 @@ describe('createGenerateImageTool', () => {
       analysis: [],
       imageGeneration: [provider],
       gifSearch: [],
+      tts: [],
     }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -116,6 +117,7 @@ describe('createGenerateImageTool', () => {
       analysis: [],
       imageGeneration: [provider],
       gifSearch: [],
+      tts: [],
     }
     const generateSpy = vi.spyOn(provider, 'generate')
     const { bridge } = recordingBridge()
@@ -142,6 +144,7 @@ describe('createGenerateImageTool', () => {
       analysis: [],
       imageGeneration: [provider],
       gifSearch: [],
+      tts: [],
     }
     const { bridge } = recordingBridge()
 
@@ -162,6 +165,7 @@ describe('createGenerateImageTool', () => {
       analysis: [],
       imageGeneration: [mockProvider(false)],
       gifSearch: [],
+      tts: [],
     }
     const { bridge } = recordingBridge()
 
@@ -185,6 +189,7 @@ describe('createGenerateImageTool', () => {
       analysis: [],
       imageGeneration: [provider],
       gifSearch: [],
+      tts: [],
     }
     const { bridge, calls } = recordingBridge()
 

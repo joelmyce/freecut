@@ -63,6 +63,7 @@ describe('createAnalyzeClipTool', () => {
       analysis: [provider],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
 
     const toolDef = createAnalyzeClipTool({
@@ -92,6 +93,7 @@ describe('createAnalyzeClipTool', () => {
       analysis: [provider],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
 
     const toolDef = createAnalyzeClipTool({
@@ -129,6 +131,7 @@ describe('createAnalyzeClipTool', () => {
       analysis: [provider],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
 
     const toolDef = createAnalyzeClipTool({
@@ -153,6 +156,7 @@ describe('createAnalyzeClipTool', () => {
       analysis: [provider],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
 
     const toolDef = createAnalyzeClipTool({
@@ -176,6 +180,7 @@ describe('createAnalyzeClipTool', () => {
       analysis: [mockProvider(false)],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
 
     const toolDef = createAnalyzeClipTool({
@@ -197,6 +202,7 @@ describe('createAnalyzeClipTool', () => {
       analysis: [provider],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
 
     const toolDef = createAnalyzeClipTool({

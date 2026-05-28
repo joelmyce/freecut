@@ -14,6 +14,7 @@ import { readClipForRegenHandler, replaceClipWithPlaceholderHandler } from './re
 import { saveTranscriptHandler } from './save-transcript'
 import { transcribeLocalHandler } from './transcribe-local'
 import { readTranscriptContextForRangeHandler } from './transcript-context'
+import { insertVoiceoverHandler, synthesizeVoiceoverLocalHandler } from './voiceover'
 
 export { BrowserActionRegistry } from './registry'
 export type { BrowserActionHandler } from './types'
@@ -34,5 +35,7 @@ export function createDefaultBrowserActionRegistry(): BrowserActionRegistry {
   registry.register('cut-silence', cutSilenceHandler)
   registry.register('read-clip-video-bytes', readClipVideoBytesHandler)
   registry.register('read-image-clip-for-animation', readImageClipForAnimationHandler)
+  registry.register('synthesize-voiceover-local', synthesizeVoiceoverLocalHandler)
+  registry.register('insert-voiceover', insertVoiceoverHandler)
   return registry
 }

@@ -3,11 +3,13 @@ export * as analysis from './analysis/index.ts'
 export * as gif from './gif/index.ts'
 export * as image from './image/index.ts'
 export * as transcription from './transcription/index.ts'
+export * as tts from './tts/index.ts'
 export * as video from './video/index.ts'
 import type { VideoAnalysisProvider } from './analysis/types.ts'
 import type { GifSearchProvider } from './gif/types.ts'
 import type { ImageGenerationProvider } from './image/types.ts'
 import type { TranscriptionProvider } from './transcription/types.ts'
+import type { TtsProvider } from './tts/types.ts'
 import type { VideoGenerationProvider } from './video/types.ts'
 
 /**
@@ -22,4 +24,5 @@ export interface ProvidersBundle {
   analysis: ReadonlyArray<VideoAnalysisProvider>
   imageGeneration: ReadonlyArray<ImageGenerationProvider>
   gifSearch: ReadonlyArray<GifSearchProvider>
+  tts: ReadonlyArray<TtsProvider>
 }

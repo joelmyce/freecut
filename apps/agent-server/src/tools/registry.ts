@@ -8,6 +8,7 @@ import { createAnimateImageTool } from './animate-image.ts'
 import { createCutSilenceTool } from './cut-silence.ts'
 import { createGenerateBrollTool } from './generate-broll.ts'
 import { createGenerateImageTool } from './generate-image.ts'
+import { createGenerateVoiceoverTool } from './generate-voiceover.ts'
 import { createReplaceClipWithRegenerationTool } from './replace-clip-with-regeneration.ts'
 import { createTranscribeTool } from './transcribe.ts'
 
@@ -34,6 +35,7 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
       createGenerateImageTool(options),
       createAnimateImageTool(options),
       createAddGifTool(options),
+      createGenerateVoiceoverTool(options),
     ],
   })
 }
@@ -53,4 +55,5 @@ export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__generate_image`,
   `mcp__${TOOL_MCP_SERVER_NAME}__animate_image`,
   `mcp__${TOOL_MCP_SERVER_NAME}__add_gif`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__generate_voiceover`,
 ]

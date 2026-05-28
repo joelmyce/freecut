@@ -11,6 +11,7 @@ import {
   LocalWhisperBrowserProxy,
   OpenAIWhisperProvider,
 } from './providers/transcription/index.ts'
+import { ElevenLabsTtsProvider, KokoroBrowserProxyTtsProvider } from './providers/tts/index.ts'
 import { FalVideoProvider } from './providers/video/index.ts'
 import type { ProvidersBundle } from './providers/index.ts'
 
@@ -35,12 +36,14 @@ function buildProviders(): ProvidersBundle {
   const fal = new FalVideoProvider({ apiKey: process.env.FAL_API_KEY })
   const falImage = new FalImageProvider({ apiKey: process.env.FAL_API_KEY })
   const giphy = new GiphyGifProvider({ apiKey: process.env.GIPHY_API_KEY })
+  const elevenlabs = new ElevenLabsTtsProvider({ apiKey: process.env.ELEVENLABS_API_KEY })
   return {
     transcription: [new LocalWhisperBrowserProxy(), openai, gemini],
     videoGeneration: [fal],
     analysis: [geminiVideo],
     imageGeneration: [falImage],
     gifSearch: [giphy],
+    tts: [new KokoroBrowserProxyTtsProvider(), elevenlabs],
   }
 }
 
@@ -54,6 +57,7 @@ log('providers initialised', {
     available: p.isAvailable(),
   })),
   gifSearch: providers.gifSearch.map((p) => ({ id: p.id, available: p.isAvailable() })),
+  tts: providers.tts.map((p) => ({ id: p.id, available: p.isAvailable() })),
 })
 
 const wss = startBridgeServer({

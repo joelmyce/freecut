@@ -85,6 +85,7 @@ describe('createAnimateImageTool', () => {
       analysis: [],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
     const { bridge, calls } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -127,6 +128,7 @@ describe('createAnimateImageTool', () => {
       analysis: [],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -151,6 +153,7 @@ describe('createAnimateImageTool', () => {
       analysis: [],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
     const { bridge } = recordingBridge()
     const generateSpy = vi.spyOn(provider, 'generate')
@@ -174,6 +177,7 @@ describe('createAnimateImageTool', () => {
       analysis: [],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
     const { bridge, calls } = recordingBridge()
 
@@ -196,6 +200,7 @@ describe('createAnimateImageTool', () => {
       analysis: [],
       imageGeneration: [],
       gifSearch: [],
+      tts: [],
     }
     // Simulate the browser handler refusing because the clip isn't AI-generated.
     const failingBridge: BrowserActionBridge = {

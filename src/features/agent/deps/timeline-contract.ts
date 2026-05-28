@@ -9,7 +9,9 @@ export {
   markGenerationPlaceholderError,
   replaceClipWithPlaceholder,
 } from '@/features/timeline/stores/actions/ai-generation-actions'
+export { addItem } from '@/features/timeline/stores/actions/item-actions'
 export { buildMediaTimelineItem } from '@/features/timeline/utils/media-timeline-item-builder'
+export { findCompatibleTrackForItemType } from '@/features/timeline/utils/track-item-compatibility'
 export {
   removeSilenceFromItems,
   type RemoveSilenceRange,
