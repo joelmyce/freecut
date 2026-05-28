@@ -124,12 +124,31 @@ export const TextContent: React.FC<{ item: TextItem & { _sequenceFrameOffset?: n
           // stroke covers the fill entirely (text becomes solid stroke
           // color, e.g. illegible black-on-black for the TikTok preset).
           paintOrder: 'stroke fill',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0,
-          width: 'fit-content',
-          maxWidth: '100%',
-          boxSizing: 'border-box',
+          // `inlineSpans` toggles span layout:
+          //   false (default, multi-line titles): flex-column — each span
+          //     stacks on its own line.
+          //   true (subtitles, karaoke): block container with inline child
+          //     spans — words flow on one line and wrap naturally.
+          // Subtitle / caption renderers set this to true so a sentence
+          // split across N spans reads as a single paragraph.
+          ...(resolvedItem.inlineSpans
+            ? {
+                display: 'block',
+                lineHeight,
+                width: 'fit-content',
+                maxWidth: '100%',
+                boxSizing: 'border-box' as const,
+                whiteSpace: 'pre-wrap' as const,
+                wordBreak: 'break-word' as const,
+              }
+            : {
+                display: 'flex',
+                flexDirection: 'column' as const,
+                gap: 0,
+                width: 'fit-content',
+                maxWidth: '100%',
+                boxSizing: 'border-box' as const,
+              }),
         }}
       >
         {spans.map((span, index) => {
@@ -146,8 +165,11 @@ export const TextContent: React.FC<{ item: TextItem & { _sequenceFrameOffset?: n
           const spanFontStyle = span.fontStyle ?? resolvedItem.fontStyle ?? 'normal'
           const spanUnderline = span.underline ?? resolvedItem.underline ?? false
 
+          const inline = resolvedItem.inlineSpans === true
+          const SpanTag = inline ? 'span' : 'div'
+
           return (
-            <div
+            <SpanTag
               key={`${index}:${span.text}`}
               style={{
                 fontSize: spanFontSize,
@@ -158,14 +180,34 @@ export const TextContent: React.FC<{ item: TextItem & { _sequenceFrameOffset?: n
                 color: spanColor,
                 lineHeight,
                 letterSpacing: spanLetterSpacing,
-                display: 'block',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                width: '100%',
+                ...(inline
+                  ? {
+                      // Inline spans flow on the same line via parent's
+                      // whiteSpace: pre-wrap. `display: 'inline'` is the
+                      // default for <span> but spelled out for clarity.
+                      display: 'inline',
+                      // `display: inline-block` would make the active-word
+                      // pop scale up cleanly without affecting line height
+                      // jitter — apply only when a per-span fontSize is set
+                      // (i.e. the karaoke active word).
+                      ...(span.fontSize !== undefined
+                        ? {
+                            display: 'inline-block',
+                            transformOrigin: 'center bottom',
+                            transition: 'font-size 80ms ease-out',
+                          }
+                        : {}),
+                    }
+                  : {
+                      display: 'block',
+                      whiteSpace: 'pre-wrap' as const,
+                      wordBreak: 'break-word' as const,
+                      width: '100%',
+                    }),
               }}
             >
               {span.text}
-            </div>
+            </SpanTag>
           )
         })}
       </div>

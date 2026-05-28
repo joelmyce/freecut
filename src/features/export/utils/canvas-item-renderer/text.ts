@@ -5,6 +5,7 @@
 
 import type { SubtitleSegmentItem, TextItem } from '@/types/timeline'
 import { FONT_WEIGHT_MAP } from '@/shared/typography/fonts'
+import { buildKaraokeSpans, DEFAULT_KARAOKE_HIGHLIGHT } from '@/shared/utils/karaoke-spans'
 import { getTextItemSpans } from '@/shared/utils/text-item-spans'
 import { parseSubtitleCueText } from '@/shared/utils/subtitle-cue-format'
 import type { TextMeasurementCache } from '../canvas-pool'
@@ -239,7 +240,20 @@ export function renderSubtitleSegmentItem(
   const activeCue = findActiveSubtitleCue(item.cues, secondsIntoSegment)
   if (!activeCue) return
   const parsed = parseSubtitleCueText(activeCue.text)
-  if (parsed.isEmpty) return
+  // Karaoke spans take precedence over inline markup when the segment is
+  // in karaoke mode and the active cue has word timestamps — same branch
+  // logic as the preview renderer in subtitle-segment-content.tsx so the
+  // export matches what the user sees while editing.
+  const karaokeSpans =
+    item.style === 'karaoke'
+      ? buildKaraokeSpans(
+          activeCue,
+          secondsIntoSegment,
+          item.karaokeHighlightColor ?? DEFAULT_KARAOKE_HIGHLIGHT,
+          { baseFontSize: item.fontSize },
+        )
+      : null
+  if (!karaokeSpans && parsed.isEmpty) return
 
   const ephemeralText: TextItem = {
     id: item.id,
@@ -249,8 +263,11 @@ export function renderSubtitleSegmentItem(
     durationInFrames: item.durationInFrames,
     label: item.label,
     mediaId: item.mediaId,
-    text: parsed.plainText,
-    textSpans: parsed.spans,
+    text: karaokeSpans ? karaokeSpans.plainText : parsed.plainText,
+    textSpans: karaokeSpans ? karaokeSpans.spans : parsed.spans,
+    // Match the preview renderer — subtitle spans flow inline. See
+    // subtitle-segment-content.tsx for the rationale.
+    inlineSpans: true,
     fontSize: item.fontSize,
     fontFamily: item.fontFamily,
     fontWeight: item.fontWeight,

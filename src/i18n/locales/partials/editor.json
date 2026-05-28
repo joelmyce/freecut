@@ -272,6 +272,7 @@
         "padding": "Padding"
       },
       "captionPresets": {
+        "defaultHint": "Anton display on a dark pill, lower-third — viral karaoke look out of the box.",
         "netflixHint": "Inter on a rounded dark box, lower-third — broadcast-grade neutral.",
         "youtubeHint": "Roboto with a soft drop shadow, no box — the auto-captions vibe.",
         "boldYellowHint": "Roboto Slab in cinema yellow with a black drop shadow — DVD-era classic.",
@@ -598,6 +599,7 @@
         "padding": "Relleno"
       },
       "captionPresets": {
+        "defaultHint": "Tipografía Anton sobre una píldora oscura, tercio inferior: look karaoke viral por defecto.",
         "netflixHint": "Inter sobre una caja oscura redondeada, tercio inferior: neutro de calidad broadcast.",
         "youtubeHint": "Roboto con una sombra suave, sin caja: el aire de los subtítulos automáticos.",
         "boldYellowHint": "Roboto Slab en amarillo de cine con sombra negra: clásico de la era del DVD.",
@@ -924,6 +926,7 @@
         "padding": "Marge intérieure"
       },
       "captionPresets": {
+        "defaultHint": "Police Anton sur une pastille sombre, bas de l'image — look karaoké viral par défaut.",
         "netflixHint": "Inter sur un cadre sombre arrondi, bas de l'image — neutre de qualité broadcast.",
         "youtubeHint": "Roboto avec une ombre portée douce, sans cadre — l'ambiance des sous-titres automatiques.",
         "boldYellowHint": "Roboto Slab en jaune cinéma avec une ombre noire — classique de l'ère DVD.",
@@ -1250,6 +1253,7 @@
         "padding": "Innenabstand"
       },
       "captionPresets": {
+        "defaultHint": "Anton-Schrift auf einer dunklen Pille, unteres Drittel — viraler Karaoke-Look ab Werk.",
         "netflixHint": "Inter auf einer abgerundeten dunklen Box, unteres Drittel — broadcast-taugliches Neutral.",
         "youtubeHint": "Roboto mit weichem Schlagschatten, ohne Box — der Auto-Untertitel-Look.",
         "boldYellowHint": "Roboto Slab in Kino-Gelb mit schwarzem Schlagschatten — Klassiker aus der DVD-Ära.",
@@ -1576,6 +1580,7 @@
         "padding": "Espaçamento interno"
       },
       "captionPresets": {
+        "defaultHint": "Fonte Anton sobre uma cápsula escura, terço inferior — visual karaokê viral pronto para usar.",
         "netflixHint": "Inter sobre uma caixa escura arredondada, terço inferior — neutro de qualidade broadcast.",
         "youtubeHint": "Roboto com uma sombra suave, sem caixa — o clima das legendas automáticas.",
         "boldYellowHint": "Roboto Slab em amarelo de cinema com sombra preta — clássico da era do DVD.",
@@ -1902,6 +1907,7 @@
         "padding": "余白"
       },
       "captionPresets": {
+        "defaultHint": "Anton yazı tipi koyu bir hap üzerinde, alt üçte bir — kutudan çıkar çıkmaz viral karaoke görünümü.",
         "netflixHint": "角丸の暗いボックスに Inter、下三分の一 — 放送品質のニュートラル。",
         "youtubeHint": "Roboto に柔らかいドロップシャドウ、ボックスなし — 自動字幕の雰囲気。",
         "boldYellowHint": "シネマイエローの Roboto Slab に黒いドロップシャドウ — DVD時代の定番。",
@@ -2228,6 +2234,7 @@
         "padding": "여백"
       },
       "captionPresets": {
+        "defaultHint": "ダークなピル上のAntonフォント、画面下部 — そのままで使えるバイラルなカラオケ風スタイル。",
         "netflixHint": "둥근 어두운 박스 위 Inter, 하단 3분의 1 — 방송 품질의 중립적인 스타일.",
         "youtubeHint": "부드러운 그림자가 있는 Roboto, 박스 없음 — 자동 자막 느낌.",
         "boldYellowHint": "검은 그림자가 있는 시네마 옐로의 Roboto Slab — DVD 시대의 클래식.",
@@ -2554,6 +2561,7 @@
         "padding": "内边距"
       },
       "captionPresets": {
+        "defaultHint": "어두운 알약 위 Anton 폰트, 화면 하단 — 박스에서 바로 꺼낸 바이럴 노래방 스타일.",
         "netflixHint": "圆角深色框上的 Inter，画面下三分之一——广播级中性。",
         "youtubeHint": "带柔和投影的 Roboto，无背景框——自动字幕的感觉。",
         "boldYellowHint": "影院黄的 Roboto Slab 配黑色投影——DVD 时代的经典。",
@@ -2880,6 +2888,7 @@
         "padding": "Dolgu"
       },
       "captionPresets": {
+        "defaultHint": "深色药丸上的 Anton 字体，下三分之一处 — 开箱即用的病毒式卡拉OK风格。",
         "netflixHint": "Yuvarlatılmış koyu kutuda Inter, alt üçte birlik konum — yayın kalitesinde nötr.",
         "youtubeHint": "Yumuşak gölgeli Roboto, kutusuz — otomatik altyazı havası.",
         "boldYellowHint": "Siyah gölgeli sinema sarısı Roboto Slab — DVD dönemi klasiği.",

@@ -59,7 +59,30 @@ type CaptionableClip = AudioItem | VideoItem
 interface InsertTranscriptAsCaptionsOptions {
   clipIds?: readonly string[]
   replaceExisting?: boolean
+  /**
+   * Caption playback style (M5.1). **Defaults to `'karaoke'`** — per-word
+   * highlight using Whisper word timestamps. When the transcript only has
+   * segment-level timing the renderer silently falls back to static cue
+   * display, so karaoke-as-default is safe across providers. Callers who
+   * want classic per-segment captions pass `'standard'`.
+   */
+  style?: 'standard' | 'karaoke'
+  /** Active-word highlight color in karaoke mode. Defaults to gold (#FFD700). */
+  karaokeHighlightColor?: string
+  /**
+   * Maximum number of words to show on screen at once in karaoke mode
+   * (M5.1). Whisper produces ~5-10s segments containing 15-25 words, which
+   * displayed as-is fills the whole canvas and defeats the karaoke effect.
+   * Splitting each segment into `wordsPerCue`-sized cues gives the modern
+   * Submagic / Captions.app sliding-window look. Defaults to 3 — overridable
+   * per request via the tool's `words_per_cue` arg. Ignored when style is
+   * `'standard'` or the transcript has no word timestamps.
+   */
+  wordsPerCue?: number
 }
+
+/** Default karaoke chunk size. Tight enough to feel modern, big enough to read. */
+const DEFAULT_KARAOKE_WORDS_PER_CUE = 3
 
 interface InsertTranscriptAsCaptionsResult {
   insertedItemCount: number
@@ -540,14 +563,68 @@ class MediaTranscriptionService {
         newTracks.sort((a, b) => a.order - b.order)
       }
 
+      const effectiveStyle = options.style ?? 'karaoke'
+      const effectiveWordsPerCue = Math.max(
+        1,
+        Math.floor(options.wordsPerCue ?? DEFAULT_KARAOKE_WORDS_PER_CUE),
+      )
       const clipCaptionItem = buildSubtitleSegmentForClip({
         trackId: targetTrack.id,
-        cues: transcript.segments.map((segment, index) => ({
-          id: `transcript-${clip.id}-${index}`,
-          startSeconds: segment.start,
-          endSeconds: segment.end,
-          text: segment.text,
-        })),
+        cues: transcript.segments.flatMap((segment, index) => {
+          const hasWords = segment.words && segment.words.length > 0
+          // In karaoke mode, chunk each Whisper segment into wordsPerCue-sized
+          // cues so the viewer only ever sees N words at a time (vs the whole
+          // sentence). Each chunk owns its own time window from its first/last
+          // word, and the renderer's existing per-word highlight logic Just
+          // Works on the smaller cue. Standard mode keeps Whisper's natural
+          // segment boundaries.
+          if (effectiveStyle === 'karaoke' && hasWords) {
+            const words = segment.words!
+            const chunks: import('@/shared/utils/subtitles').SubtitleCue[] = []
+            for (let i = 0; i < words.length; i += effectiveWordsPerCue) {
+              const slice = words.slice(i, i + effectiveWordsPerCue)
+              const first = slice[0]!
+              const last = slice[slice.length - 1]!
+              const chunkText = slice
+                .map((word) => word.text.trim())
+                .filter((text) => text.length > 0)
+                .join(' ')
+              if (chunkText.length === 0) continue
+              chunks.push({
+                id: `transcript-${clip.id}-${index}-${i / effectiveWordsPerCue}`,
+                startSeconds: first.start,
+                endSeconds: last.end,
+                text: chunkText,
+                words: slice.map((word) => ({
+                  text: word.text.trim(),
+                  start: word.start,
+                  end: word.end,
+                })),
+              })
+            }
+            return chunks
+          }
+          // Standard mode or no word timing — one cue per segment, matching
+          // pre-M5.1 behavior. Words[] threaded through when available so
+          // a later "switch to karaoke" reinsert can use them.
+          return [
+            {
+              id: `transcript-${clip.id}-${index}`,
+              startSeconds: segment.start,
+              endSeconds: segment.end,
+              text: segment.text,
+              ...(hasWords
+                ? {
+                    words: segment.words!.map((word) => ({
+                      text: word.text,
+                      start: word.start,
+                      end: word.end,
+                    })),
+                  }
+                : {}),
+            },
+          ]
+        }),
         clip,
         timelineFps: timeline.fps,
         canvasWidth,
@@ -561,6 +638,11 @@ class MediaTranscriptionService {
         styleTemplate: existingGeneratedCaptions[0]
           ? getCaptionTextItemTemplate(existingGeneratedCaptions[0])
           : undefined,
+        // Karaoke is the default — every caption insert highlights words as
+        // they're spoken when the transcript has word timing, and falls back
+        // to plain cues otherwise. Pass `style: 'standard'` to opt out.
+        style: effectiveStyle,
+        karaokeHighlightColor: options.karaokeHighlightColor,
       })
 
       if (!clipCaptionItem) {

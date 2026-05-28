@@ -6,6 +6,11 @@ import {
 } from '../deps/timeline-contract'
 import type { MediaTranscriptSegment } from '@/types/storage'
 import type { MediaCaption } from '@/infrastructure/analysis'
+import {
+  DEFAULT_CAPTION_PRESET_ID,
+  getCaptionStylePresetById,
+  resolveCaptionStylePatch,
+} from '@/shared/typography/caption-style-presets'
 import type { SubtitleCue, SubtitleFormat } from '@/shared/utils/subtitles'
 import type {
   AudioItem,
@@ -312,7 +317,7 @@ export function isCaptionTrackCandidate(
 export function buildCaptionTrack(tracks: readonly TimelineTrack[]): TimelineTrack {
   const maxOrder = tracks.reduce((highest, track) => Math.max(highest, track.order), -1)
   return {
-    id: `track-captions-${Date.now()}`,
+    id: `track-captions-${crypto.randomUUID()}`,
     name: getNextClassicTrackName([...tracks], 'video'),
     kind: 'video',
     height: DEFAULT_TRACK_HEIGHT,
@@ -347,7 +352,7 @@ export function buildCaptionTrackAbove(
   const newOrder = (previousOrder + referenceOrder) / 2
 
   return {
-    id: `track-captions-${Date.now()}`,
+    id: `track-captions-${crypto.randomUUID()}`,
     name: getNextClassicTrackName([...tracks], 'video'),
     kind: 'video',
     height: DEFAULT_TRACK_HEIGHT,
@@ -821,6 +826,15 @@ interface BuildSubtitleSegmentForClipOptions {
   styleTemplate?: CaptionTextItemTemplate
   /** Label shown in the timeline-item UI; defaults to the source-track label. */
   label?: string
+  /**
+   * M5.1 caption playback style. `'karaoke'` requires the input cues to
+   * carry `words[]` (Whisper word-level timestamps) for the active-word
+   * highlight to render — otherwise the renderer silently falls back to
+   * standard captions per cue.
+   */
+  style?: 'standard' | 'karaoke'
+  /** Highlight color for the active word in karaoke mode. Defaults to gold (#FFD700). */
+  karaokeHighlightColor?: string
 }
 
 /**
@@ -845,6 +859,8 @@ export function buildSubtitleSegmentForClip(
     source,
     styleTemplate,
     label,
+    style,
+    karaokeHighlightColor,
   } = options
   const { sourceStart, sourceEnd, sourceFps, speed } = getClipSourceBounds(clip, timelineFps)
   const sourceStartSeconds = sourceStart / sourceFps
@@ -867,11 +883,30 @@ export function buildSubtitleSegmentForClip(
     const cueEndFrames = Math.ceil(cueEndTimeline * timelineFps)
     if (cueEndFrames <= cueStartFrames) continue
 
+    // Same source→timeline→segment-relative transform applied to optional
+    // word timestamps, with words clipped to the cue's overlap window so
+    // out-of-range words don't bleed past trim points.
+    const overlappingWords = cue.words
+      ? cue.words
+          .map((word) => {
+            const wordStartSrc = Math.max(word.start, overlapStartSec)
+            const wordEndSrc = Math.min(word.end, overlapEndSec)
+            if (wordEndSrc <= wordStartSrc) return null
+            return {
+              text: word.text,
+              start: (wordStartSrc - sourceStartSeconds) / speed,
+              end: (wordEndSrc - sourceStartSeconds) / speed,
+            }
+          })
+          .filter((w): w is { text: string; start: number; end: number } => w !== null)
+      : undefined
+
     overlappingCues.push({
       id: cue.id,
       startSeconds: cueStartTimeline,
       endSeconds: cueEndTimeline,
       text: cue.text,
+      ...(overlappingWords && overlappingWords.length > 0 ? { words: overlappingWords } : {}),
     })
     if (cueStartFrames < firstFromOffset) firstFromOffset = cueStartFrames
     if (cueEndFrames > lastEndOffset) lastEndOffset = cueEndFrames
@@ -888,40 +923,62 @@ export function buildSubtitleSegmentForClip(
   const durationInFrames = Math.max(1, segmentEndOffset - segmentFromOffset)
 
   // Cue times are now stored segment-relative (start = 0 at the segment's `from`).
+  const segmentOriginSec = segmentFromOffset / timelineFps
   const segmentRelativeCues = overlappingCues.map((cue) => ({
     id: cue.id,
-    startSeconds: cue.startSeconds - segmentFromOffset / timelineFps,
-    endSeconds: cue.endSeconds - segmentFromOffset / timelineFps,
+    startSeconds: cue.startSeconds - segmentOriginSec,
+    endSeconds: cue.endSeconds - segmentOriginSec,
     text: cue.text,
+    ...(cue.words
+      ? {
+          words: cue.words.map((word) => ({
+            text: word.text,
+            start: word.start - segmentOriginSec,
+            end: word.end - segmentOriginSec,
+          })),
+        }
+      : {}),
   }))
 
-  const defaultStyle = {
-    fontSize: Math.max(36, Math.round(canvasHeight * 0.045)),
-    fontFamily: 'Inter',
-    fontWeight: 'semibold' as const,
-    fontStyle: 'normal' as const,
-    underline: false,
-    color: '#ffffff',
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    textAlign: 'center' as const,
-    verticalAlign: 'middle' as const,
-    lineHeight: 1.15,
-    letterSpacing: 0,
-    textShadow: {
-      offsetX: 0,
-      offsetY: 3,
-      blur: 10,
-      color: 'rgba(0, 0, 0, 0.75)',
-    },
-    transform: {
-      x: 0,
-      y: Math.round(canvasHeight * 0.32),
-      width: canvasWidth * 0.82,
-      height: canvasHeight * 0.16,
-      rotation: 0,
-      opacity: 1,
-    },
-  }
+  // Karaoke captions land with the "Default" preset (TikTok-flavored + dark
+  // background pill + lower-third) when there's no existing styleTemplate to
+  // inherit from. Standard captions keep the legacy Inter/semibold baseline.
+  // Either way `styleTemplate` (i.e. the user's existing caption look on this
+  // clip) wins so a re-insert with `replace_existing` doesn't reset tweaks.
+  const baseStyle =
+    style === 'karaoke'
+      ? resolveCaptionStylePatch(
+          getCaptionStylePresetById(DEFAULT_CAPTION_PRESET_ID)!,
+          canvasWidth,
+          canvasHeight,
+        )
+      : {
+          fontSize: Math.max(36, Math.round(canvasHeight * 0.045)),
+          fontFamily: 'Inter',
+          fontWeight: 'semibold' as const,
+          fontStyle: 'normal' as const,
+          underline: false,
+          color: '#ffffff',
+          backgroundColor: 'rgba(0, 0, 0, 0.55)',
+          textAlign: 'center' as const,
+          verticalAlign: 'middle' as const,
+          lineHeight: 1.15,
+          letterSpacing: 0,
+          textShadow: {
+            offsetX: 0,
+            offsetY: 3,
+            blur: 10,
+            color: 'rgba(0, 0, 0, 0.75)',
+          },
+          transform: {
+            x: 0,
+            y: Math.round(canvasHeight * 0.32),
+            width: canvasWidth * 0.82,
+            height: canvasHeight * 0.16,
+            rotation: 0,
+            opacity: 1,
+          },
+        }
 
   return {
     id: crypto.randomUUID(),
@@ -943,8 +1000,10 @@ export function buildSubtitleSegmentForClip(
     sourceLabel: label,
     source,
     cues: segmentRelativeCues,
-    ...defaultStyle,
+    ...baseStyle,
     ...styleTemplate,
+    ...(style === 'karaoke' ? { style: 'karaoke' as const } : {}),
+    ...(karaokeHighlightColor ? { karaokeHighlightColor } : {}),
   }
 }
 

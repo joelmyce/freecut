@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 
 import { useSequenceContext } from '@/runtime/composition-runtime/deps/player'
+import { buildKaraokeSpans, DEFAULT_KARAOKE_HIGHLIGHT } from '@/shared/utils/karaoke-spans'
 import { parseSubtitleCueText } from '@/shared/utils/subtitle-cue-format'
 import type { SubtitleSegmentItem, TextItem } from '@/types/timeline'
 
@@ -14,6 +15,12 @@ import { TextContent } from './text-content'
  * TextItems, we resolve the cue active at the current sequence frame and
  * reuse {@link TextContent} so all of TextItem's styling (font loading,
  * text shadow, stroke, alignment) Just Works.
+ *
+ * In `style: 'karaoke'` mode (M5.1), the active cue's text splits into
+ * per-word spans driven by Whisper word timestamps; the word covering
+ * the current frame gets the `karaokeHighlightColor` override. Falls
+ * back to standard cue rendering when the active cue has no `words[]`
+ * (e.g. SRT imports without word timing).
  */
 export const SubtitleSegmentContent: React.FC<{
   item: SubtitleSegmentItem & { _sequenceFrameOffset?: number }
@@ -36,6 +43,27 @@ export const SubtitleSegmentContent: React.FC<{
     [activeCue],
   )
 
+  // Karaoke spans, when applicable. Built from the cue's word timestamps;
+  // null when not in karaoke mode or when the cue has no words to anchor
+  // a highlight to. When present, these REPLACE the inline-markup spans —
+  // mixing the two is out of scope for v1 (karaoke transcripts don't
+  // typically carry SRT-style markup anyway).
+  const karaokeSpans = useMemo(
+    () =>
+      item.style === 'karaoke' && activeCue
+        ? buildKaraokeSpans(
+            activeCue,
+            secondsIntoSegment,
+            item.karaokeHighlightColor ?? DEFAULT_KARAOKE_HIGHLIGHT,
+            // Pass the segment's font size so the active word's pop scales
+            // proportionally — without baseFontSize the helper skips the
+            // per-span fontSize override and the highlight is color-only.
+            { baseFontSize: item.fontSize },
+          )
+        : null,
+    [activeCue, item.fontSize, item.karaokeHighlightColor, item.style, secondsIntoSegment],
+  )
+
   // Synthesize an ephemeral TextItem that carries the active cue's text and
   // the segment's typography. Keyframe/gizmo lookups by id will miss (the
   // segment isn't a TextItem) — that's fine for now; segment-level keyframes
@@ -50,11 +78,16 @@ export const SubtitleSegmentContent: React.FC<{
       label: item.label,
       mediaId: item.mediaId,
       transform: item.transform,
-      text: parsed?.plainText ?? '',
+      text: karaokeSpans ? karaokeSpans.plainText : (parsed?.plainText ?? ''),
       // textSpans drives styled per-run rendering — italic / bold / colored
       // fragments inside one cue. TextContent prefers spans over `text`
       // when both are present.
-      textSpans: parsed?.spans,
+      textSpans: karaokeSpans ? karaokeSpans.spans : parsed?.spans,
+      // Subtitles render their spans INLINE (a sentence flowing on one
+      // line) — without this the renderer falls back to the legacy
+      // stacked-spans layout meant for title cards and every span lands
+      // on its own line.
+      inlineSpans: true,
       fontSize: item.fontSize,
       fontFamily: item.fontFamily,
       fontWeight: item.fontWeight,
@@ -72,10 +105,13 @@ export const SubtitleSegmentContent: React.FC<{
       stroke: item.stroke,
       _sequenceFrameOffset: item._sequenceFrameOffset,
     }),
-    [parsed, item],
+    [item, karaokeSpans, parsed],
   )
 
-  if (!activeCue || !parsed || parsed.isEmpty) return null
+  if (!activeCue) return null
+  // Karaoke mode skips the parsed.isEmpty guard because spans drive the
+  // render — an empty parsed result is fine as long as we have words.
+  if (!karaokeSpans && (!parsed || parsed.isEmpty)) return null
   return <TextContent item={syntheticTextItem} />
 }
 

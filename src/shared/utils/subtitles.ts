@@ -1,10 +1,24 @@
 export type SubtitleFormat = 'srt' | 'vtt'
 
+/**
+ * Optional per-word timing for karaoke caption rendering (M5.1).
+ * Times are seconds in the SAME coord system as the parent
+ * `SubtitleCue.startSeconds/endSeconds`. Populated by Whisper transcripts
+ * when word timestamps are available; SRT/VTT imports leave this unset
+ * because those formats don't carry word-level timing.
+ */
+export interface SubtitleCueWord {
+  text: string
+  start: number
+  end: number
+}
+
 export interface SubtitleCue {
   id: string
   startSeconds: number
   endSeconds: number
   text: string
+  words?: SubtitleCueWord[]
 }
 
 export interface SubtitleParseResult {

@@ -180,6 +180,17 @@ export type TextItem = BaseTimelineItem & {
   type: 'text'
   text: string
   textSpans?: TextSpan[]
+  /**
+   * When `true`, `textSpans` render INLINE (`<span>`-style, words flow on
+   * the same line and wrap as a paragraph). When `false` / unset they
+   * render BLOCK (each span on its own line, stacked vertically) — the
+   * default that preserves the legacy multi-line title layout.
+   *
+   * Subtitle renderers (per-cue caption text, karaoke per-word highlight)
+   * set this to `true` so multi-span subtitles read as a single readable
+   * line; one-shot title cards keep the block default.
+   */
+  inlineSpans?: boolean
   textLayoutDrafts?: TextLayoutDrafts
   textStylePresetId?: TextStylePresetId
   textStyleScale?: number
@@ -307,12 +318,25 @@ export type CompositionItem = BaseTimelineItem & {
  * relative to the segment's `from` (after speed scaling) — i.e. the same
  * model as imported SRT/VTT, so a cue payload survives `from` changes,
  * trims, and splits without rewriting timestamps.
+ *
+ * Optional per-word timestamps drive the M5.1 karaoke caption mode — the
+ * renderer picks the active word at each frame using `words[i].start/end`
+ * (same segment-relative coord system as `startSeconds/endSeconds`).
+ * Populated when Whisper produced word-level timestamps; absent for
+ * SRT/VTT imports.
  */
+export interface SubtitleSegmentCueWord {
+  text: string
+  start: number
+  end: number
+}
+
 export interface SubtitleSegmentCue {
   id: string
   startSeconds: number
   endSeconds: number
   text: string
+  words?: SubtitleSegmentCueWord[]
 }
 
 /**
@@ -335,6 +359,23 @@ export type SubtitleSegmentItem = BaseTimelineItem & {
   source: SubtitleSegmentSource
   /** Cue list, sorted by `startSeconds`. Times are segment-relative. */
   cues: SubtitleSegmentCue[]
+  /**
+   * M5.1 playback style.
+   *   - `standard` (default when unset): the active cue's text renders as
+   *     one block per frame, like classic captions.
+   *   - `karaoke`: the active cue's text splits into per-word spans; the
+   *     word whose `[start, end)` covers the current frame gets the
+   *     `karaokeHighlightColor` override. Requires the active cue to have
+   *     `words[]` populated — falls back to standard rendering when the
+   *     cue has no word data (e.g. SRT/VTT imports without word timing).
+   */
+  style?: 'standard' | 'karaoke'
+  /**
+   * Color applied to the active word in karaoke mode. Defaults to
+   * `#FFD700` (the gold karaoke convention) when unset. Hex / named CSS
+   * colors only — no rgba.
+   */
+  karaokeHighlightColor?: string
   // Typography (same defaults as TextItem)
   fontSize?: number
   fontFamily?: string
