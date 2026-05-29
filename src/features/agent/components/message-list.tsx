@@ -1,13 +1,19 @@
 import { useEffect, useRef } from 'react'
 import { MessageBubble } from './message-bubble'
+import type { ConfirmationDecisionKind } from '../bridge/protocol'
 import type { ChatMessage } from '../hooks/use-agent-chat'
 
 interface MessageListProps {
   messages: ReadonlyArray<ChatMessage>
   isLoading: boolean
+  onConfirm: (
+    confirmationId: string,
+    decision: ConfirmationDecisionKind,
+    edits?: Record<string, unknown>,
+  ) => void
 }
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
+export function MessageList({ messages, isLoading, onConfirm }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -39,7 +45,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
   return (
     <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
       {messages.map((message) => (
-        <MessageBubble key={message.id} message={message} />
+        <MessageBubble key={message.id} message={message} onConfirm={onConfirm} />
       ))}
       {isLoading && (
         <div className="flex justify-start">

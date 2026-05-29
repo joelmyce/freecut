@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { BrowserActionBridge } from '../providers/types.ts'
-import type { ServerToBrowserMessage } from './protocol.ts'
+import type { BrowserActionBridge, ConfirmationDecision } from '../providers/types.ts'
+import type {
+  ConfirmationCard,
+  ConfirmationDecisionKind,
+  ServerToBrowserMessage,
+} from './protocol.ts'
 
 /**
  * Default timeout for a single browser-delegated action. Provider-level work
@@ -8,6 +12,14 @@ import type { ServerToBrowserMessage } from './protocol.ts'
  * minutes, so this is generous. Override per-construction if needed.
  */
 export const DEFAULT_BROWSER_ACTION_TIMEOUT_MS = 10 * 60 * 1000
+
+/**
+ * Default timeout for a concept-card confirmation (M5.2). A human is in the
+ * loop so this is much longer than a browser action — but bounded so a stuck
+ * card doesn't pin a turn forever. On timeout the awaiting tool's promise
+ * rejects; tools treat that as "no" and make no mutation.
+ */
+export const DEFAULT_CONFIRMATION_TIMEOUT_MS = 30 * 60 * 1000
 
 export interface BridgeSocketSender {
   send(message: ServerToBrowserMessage): void
@@ -20,6 +32,12 @@ interface PendingEntry {
   reject(reason: Error): void
 }
 
+interface PendingConfirmation {
+  cleanup(): void
+  resolve(decision: ConfirmationDecision): void
+  reject(reason: Error): void
+}
+
 /**
  * Per-client correlator that turns the fire-and-forget
  * `invoke-browser-action` / `browser-action-result` protocol into request/
@@ -28,10 +46,12 @@ interface PendingEntry {
  */
 export class SocketBrowserActionBridge implements BrowserActionBridge {
   private readonly pending = new Map<string, PendingEntry>()
+  private readonly pendingConfirmations = new Map<string, PendingConfirmation>()
 
   constructor(
     private readonly sender: BridgeSocketSender,
     private readonly timeoutMs: number = DEFAULT_BROWSER_ACTION_TIMEOUT_MS,
+    private readonly confirmationTimeoutMs: number = DEFAULT_CONFIRMATION_TIMEOUT_MS,
   ) {}
 
   async invokeBrowserAction<T = unknown>(
@@ -107,10 +127,82 @@ export class SocketBrowserActionBridge implements BrowserActionBridge {
   }
 
   /**
-   * Reject every in-flight action — used when the underlying socket closes.
+   * M5.2: ask the user to approve/reject/edit an expensive render. Mirrors
+   * `invokeBrowserAction` but uses the dedicated `pending-confirmation` /
+   * `confirmation-response` message pair and a longer timeout. Unlike a
+   * browser action, an abort does NOT send a cancel message — there is no
+   * cancel-confirmation wire message; the browser expires the dangling card
+   * when the turn ends.
+   */
+  async requestConfirmation(
+    card: ConfirmationCard,
+    signal: AbortSignal,
+  ): Promise<ConfirmationDecision> {
+    if (signal.aborted) {
+      throw new DOMException('aborted before requesting confirmation', 'AbortError')
+    }
+    if (!this.sender.isOpen()) {
+      throw new Error('bridge socket is closed; cannot request confirmation')
+    }
+
+    const confirmationId = randomUUID()
+
+    return await new Promise<ConfirmationDecision>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        entry.reject(new Error(`confirmation timed out after ${this.confirmationTimeoutMs}ms`))
+      }, this.confirmationTimeoutMs)
+
+      const abortListener = (): void => {
+        entry.reject(new DOMException('confirmation aborted', 'AbortError'))
+      }
+
+      const entry: PendingConfirmation = {
+        cleanup: () => {
+          clearTimeout(timeout)
+          signal.removeEventListener('abort', abortListener)
+          this.pendingConfirmations.delete(confirmationId)
+        },
+        resolve: (decision) => {
+          entry.cleanup()
+          resolve(decision)
+        },
+        reject: (reason) => {
+          entry.cleanup()
+          reject(reason)
+        },
+      }
+
+      this.pendingConfirmations.set(confirmationId, entry)
+      signal.addEventListener('abort', abortListener, { once: true })
+
+      this.sender.send({ type: 'pending-confirmation', confirmationId, ...card })
+    })
+  }
+
+  /**
+   * Resolve a pending confirmation when its `confirmation-response` arrives.
+   * Silently no-ops for unknown ids — the confirmation may have already
+   * aborted, timed out, or belonged to a previous turn.
+   */
+  handleConfirmationResponse(
+    confirmationId: string,
+    decision: ConfirmationDecisionKind,
+    edits?: Record<string, unknown>,
+  ): void {
+    const entry = this.pendingConfirmations.get(confirmationId)
+    if (!entry) return
+    entry.resolve({ decision, edits })
+  }
+
+  /**
+   * Reject every in-flight action AND confirmation — used when the underlying
+   * socket closes.
    */
   rejectAll(reason: Error): void {
     for (const entry of [...this.pending.values()]) {
+      entry.reject(reason)
+    }
+    for (const entry of [...this.pendingConfirmations.values()]) {
       entry.reject(reason)
     }
   }

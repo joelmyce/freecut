@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_BROWSER_ACTION_TIMEOUT_MS,
+  DEFAULT_CONFIRMATION_TIMEOUT_MS,
   SocketBrowserActionBridge,
   type BridgeSocketSender,
 } from './browser-action-bridge.ts'
@@ -143,5 +144,124 @@ describe('SocketBrowserActionBridge', () => {
 
   it('exports a sane default timeout', () => {
     expect(DEFAULT_BROWSER_ACTION_TIMEOUT_MS).toBeGreaterThan(60_000)
+  })
+})
+
+function captureConfirmationId(sender: ReturnType<typeof makeSender>): string {
+  const last = sender.sent.at(-1)
+  if (!last || last.type !== 'pending-confirmation') {
+    throw new Error('expected last sent message to be pending-confirmation')
+  }
+  return last.confirmationId
+}
+
+describe('SocketBrowserActionBridge — confirmations (M5.2)', () => {
+  it('sends pending-confirmation with the card and resolves on the response', async () => {
+    const sender = makeSender()
+    const bridge = new SocketBrowserActionBridge(sender)
+    const promise = bridge.requestConfirmation(
+      { title: 'Animate?', summary: 'drift left', costEstimate: { amount: 0.25, currency: 'USD' } },
+      new AbortController().signal,
+    )
+
+    expect(sender.sent).toHaveLength(1)
+    expect(sender.sent[0]).toMatchObject({
+      type: 'pending-confirmation',
+      title: 'Animate?',
+      summary: 'drift left',
+      costEstimate: { amount: 0.25, currency: 'USD' },
+    })
+
+    bridge.handleConfirmationResponse(captureConfirmationId(sender), 'approve')
+    await expect(promise).resolves.toMatchObject({ decision: 'approve' })
+  })
+
+  it('passes edits through when the decision is edit', async () => {
+    const sender = makeSender()
+    const bridge = new SocketBrowserActionBridge(sender)
+    const promise = bridge.requestConfirmation(
+      { title: 't', summary: 's' },
+      new AbortController().signal,
+    )
+
+    bridge.handleConfirmationResponse(captureConfirmationId(sender), 'edit', {
+      motion_prompt: 'zoom out',
+    })
+    await expect(promise).resolves.toEqual({
+      decision: 'edit',
+      edits: { motion_prompt: 'zoom out' },
+    })
+  })
+
+  it('throws synchronously when the signal is already aborted and sends nothing', async () => {
+    const sender = makeSender()
+    const bridge = new SocketBrowserActionBridge(sender)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      bridge.requestConfirmation({ title: 't', summary: 's' }, controller.signal),
+    ).rejects.toThrow(/aborted/)
+    expect(sender.sent).toHaveLength(0)
+  })
+
+  it('throws when the socket is closed', async () => {
+    const sender = makeSender()
+    sender.open = false
+    const bridge = new SocketBrowserActionBridge(sender)
+    await expect(
+      bridge.requestConfirmation({ title: 't', summary: 's' }, new AbortController().signal),
+    ).rejects.toThrow(/closed/)
+  })
+
+  it('rejects on mid-flight abort WITHOUT sending a cancel message', async () => {
+    const sender = makeSender()
+    const bridge = new SocketBrowserActionBridge(sender)
+    const controller = new AbortController()
+    const promise = bridge.requestConfirmation({ title: 't', summary: 's' }, controller.signal)
+
+    controller.abort()
+    await expect(promise).rejects.toThrow(/aborted/)
+    // Unlike browser actions, confirmations have no cancel wire message — only
+    // the original pending-confirmation was ever sent.
+    expect(sender.sent).toHaveLength(1)
+  })
+
+  it('no-ops handleConfirmationResponse for unknown ids', () => {
+    const sender = makeSender()
+    const bridge = new SocketBrowserActionBridge(sender)
+    expect(() => bridge.handleConfirmationResponse('nope', 'approve')).not.toThrow()
+  })
+
+  it('rejectAll terminates pending confirmations', async () => {
+    const sender = makeSender()
+    const bridge = new SocketBrowserActionBridge(sender)
+    const promise = bridge.requestConfirmation(
+      { title: 't', summary: 's' },
+      new AbortController().signal,
+    )
+
+    bridge.rejectAll(new Error('socket closed'))
+    await expect(promise).rejects.toThrow('socket closed')
+  })
+
+  it('times out a pending confirmation when no response arrives', async () => {
+    vi.useFakeTimers()
+    try {
+      const sender = makeSender()
+      const bridge = new SocketBrowserActionBridge(sender, 100, 100)
+      const promise = bridge.requestConfirmation(
+        { title: 't', summary: 's' },
+        new AbortController().signal,
+      )
+      const expectation = expect(promise).rejects.toThrow(/timed out/)
+      await vi.advanceTimersByTimeAsync(150)
+      await expectation
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives confirmations a longer default timeout than browser actions', () => {
+    expect(DEFAULT_CONFIRMATION_TIMEOUT_MS).toBeGreaterThan(DEFAULT_BROWSER_ACTION_TIMEOUT_MS)
   })
 })

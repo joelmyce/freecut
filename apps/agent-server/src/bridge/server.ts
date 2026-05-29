@@ -139,6 +139,15 @@ async function handleClientMessage(
       return
     }
 
+    case 'confirmation-response': {
+      state.bridge.handleConfirmationResponse(
+        message.confirmationId,
+        message.decision,
+        message.edits,
+      )
+      return
+    }
+
     case 'state-changed':
       // Reserved for later milestones (state sync).
       return

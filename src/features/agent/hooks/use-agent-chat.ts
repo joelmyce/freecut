@@ -10,10 +10,17 @@ import {
 import { createLogger } from '@/shared/logging/logger'
 import { summarizeTimelineForAgent } from '@/shared/state/agent'
 import { getAgentBridgeClient } from '../bridge/client'
-import type { ServerToBrowserMessage } from '../bridge/protocol'
+import type {
+  ConfirmationCard,
+  ConfirmationDecisionKind,
+  ServerToBrowserMessage,
+} from '../bridge/protocol'
 import { captureTimelineAgentSnapshot } from '../timeline-snapshot'
 
 const log = createLogger('use-agent-chat')
+
+/** Lifecycle of a concept-card confirmation in the chat (M5.2). */
+export type ConfirmationStatus = 'pending' | 'approved' | 'rejected' | 'edited' | 'expired'
 
 export type ChatMessage =
   | { id: string; kind: 'user'; turnId: string; text: string; ts: number }
@@ -46,6 +53,14 @@ export type ChatMessage =
       ts: number
     }
   | { id: string; kind: 'error'; turnId?: string; text: string; ts: number }
+  // M5.2 concept-card approval: a spend-confirmation card rendered inline.
+  | ({
+      id: string
+      kind: 'confirmation'
+      confirmationId: string
+      status: ConfirmationStatus
+      ts: number
+    } & ConfirmationCard)
 
 export interface UseAgentChat {
   messages: ReadonlyArray<ChatMessage>
@@ -54,6 +69,12 @@ export interface UseAgentChat {
   send(text: string): boolean
   cancel(): boolean
   clear(): void
+  /** Respond to a pending concept-card confirmation (M5.2). */
+  respondToConfirmation(
+    confirmationId: string,
+    decision: ConfirmationDecisionKind,
+    edits?: Record<string, unknown>,
+  ): void
 }
 
 export function useAgentChat(): UseAgentChat {
@@ -130,7 +151,29 @@ export function useAgentChat(): UseAgentChat {
     setMessages([])
   }, [])
 
-  return { messages, activeTurnId, isConnected, send, cancel, clear }
+  const respondToConfirmation = useCallback(
+    (
+      confirmationId: string,
+      decision: ConfirmationDecisionKind,
+      edits?: Record<string, unknown>,
+    ): void => {
+      client.send({ type: 'confirmation-response', confirmationId, decision, edits })
+      const nextStatus: ConfirmationStatus =
+        decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'edited'
+      // Optimistically reflect the choice so the card's buttons disable
+      // immediately; the server resolves the awaiting tool off the same id.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.kind === 'confirmation' && m.confirmationId === confirmationId && m.status === 'pending'
+            ? { ...m, status: nextStatus }
+            : m,
+        ),
+      )
+    },
+    [client],
+  )
+
+  return { messages, activeTurnId, isConnected, send, cancel, clear, respondToConfirmation }
 }
 
 function handleMessage(
@@ -195,8 +238,38 @@ function handleMessage(
         },
       ])
       return
+    case 'pending-confirmation':
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `cf-${msg.confirmationId}`,
+          kind: 'confirmation',
+          confirmationId: msg.confirmationId,
+          title: msg.title,
+          summary: msg.summary,
+          costEstimate: msg.costEstimate,
+          previewImageUrl: msg.previewImageUrl,
+          details: msg.details,
+          editableFields: msg.editableFields,
+          approveLabel: msg.approveLabel,
+          rejectLabel: msg.rejectLabel,
+          status: 'pending',
+          ts,
+        },
+      ])
+      return
     case 'turn-end':
       setActiveTurnId((prev) => (prev === msg.turnId ? null : prev))
+      // A still-pending card at turn-end means the turn ended without a
+      // decision (cancelled / errored) — the tool had been blocking on it.
+      // Disable it so it can't be clicked into a void.
+      setMessages((prev) =>
+        prev.some((m) => m.kind === 'confirmation' && m.status === 'pending')
+          ? prev.map((m) =>
+              m.kind === 'confirmation' && m.status === 'pending' ? { ...m, status: 'expired' } : m,
+            )
+          : prev,
+      )
       return
     case 'error':
       setMessages((prev) => [

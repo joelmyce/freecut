@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createAnimateImageTool } from './animate-image.ts'
-import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
+import type { ConfirmationCard } from '../bridge/protocol.ts'
+import type {
+  BrowserActionBridge,
+  ConfirmationDecision,
+  ProvidersBundle,
+} from '../providers/index.ts'
 import type { VideoGenerationProvider } from '../providers/video/index.ts'
 
 function mockProvider(
@@ -70,6 +75,34 @@ function recordingBridge(overrides: { clipInfo?: unknown } = {}) {
     },
   }
   return { bridge, calls }
+}
+
+function providersWith(provider: VideoGenerationProvider): ProvidersBundle {
+  return {
+    transcription: [],
+    videoGeneration: [provider],
+    analysis: [],
+    imageGeneration: [],
+    gifSearch: [],
+    tts: [],
+  }
+}
+
+/**
+ * Wraps `recordingBridge` with a `requestConfirmation` that returns a fixed
+ * decision and records the cards it was shown — the M5.2 spend gate.
+ */
+function confirmingBridge(decision: ConfirmationDecision, overrides: { clipInfo?: unknown } = {}) {
+  const base = recordingBridge(overrides)
+  const cards: ConfirmationCard[] = []
+  const bridge: BrowserActionBridge = {
+    invokeBrowserAction: base.bridge.invokeBrowserAction,
+    requestConfirmation: async (card: ConfirmationCard) => {
+      cards.push(card)
+      return decision
+    },
+  }
+  return { bridge, calls: base.calls, cards }
 }
 
 async function callTool(toolDef: ReturnType<typeof createAnimateImageTool>, args: unknown) {
@@ -219,5 +252,78 @@ describe('createAnimateImageTool', () => {
     await expect(callTool(toolDef, { image_clip_id: 'img-1' })).rejects.toThrow(
       /no generation.json/,
     )
+  })
+
+  it('M5.2: shows a confirmation card with the still + cost, then proceeds on approve', async () => {
+    const provider = mockProvider('fal')
+    const { bridge, calls, cards } = confirmingBridge({ decision: 'approve' })
+    const generateSpy = vi.spyOn(provider, 'generate')
+
+    const toolDef = createAnimateImageTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    const result = await callTool(toolDef, { image_clip_id: 'img-1' })
+    const parsed = JSON.parse((result.content[0] as { text: string }).text)
+
+    expect(parsed).toMatchObject({ clipId: 'clip-anim', providerUsed: 'fal' })
+    // The card previewed the actual still and carried a labeled cost estimate.
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.previewImageUrl).toBe('https://fal.media/files/foo.png')
+    expect(cards[0]?.costEstimate?.isEstimate).toBe(true)
+    // Full mutation flow ran after approval.
+    expect(calls.map((c) => c.action)).toEqual([
+      'read-image-clip-for-animation',
+      'replace-clip-with-placeholder',
+      'swap-generation-placeholder-with-url',
+    ])
+    expect(generateSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('M5.2: reject returns status:"declined" and makes NO timeline mutation', async () => {
+    const provider = mockProvider('fal')
+    const { bridge, calls, cards } = confirmingBridge({ decision: 'reject' })
+    const generateSpy = vi.spyOn(provider, 'generate')
+
+    const toolDef = createAnimateImageTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    const result = await callTool(toolDef, { image_clip_id: 'img-1' })
+    const parsed = JSON.parse((result.content[0] as { text: string }).text)
+
+    expect(parsed.status).toBe('declined')
+    expect(cards).toHaveLength(1)
+    // Only the read-only step ran — no placeholder, no swap, no provider call.
+    expect(calls.map((c) => c.action)).toEqual(['read-image-clip-for-animation'])
+    expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('M5.2: edit applies the motion_prompt override before rendering', async () => {
+    const provider = mockProvider('fal')
+    const { bridge, calls } = confirmingBridge({
+      decision: 'edit',
+      edits: { motion_prompt: 'slow dolly in' },
+    })
+    const generateSpy = vi.spyOn(provider, 'generate')
+
+    const toolDef = createAnimateImageTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    const result = await callTool(toolDef, {
+      image_clip_id: 'img-1',
+      motion_prompt: 'original prompt',
+    })
+    const parsed = JSON.parse((result.content[0] as { text: string }).text)
+
+    expect(parsed.motionPrompt).toBe('slow dolly in')
+    expect(generateSpy.mock.calls[0]?.[0].prompt).toBe('slow dolly in')
+    // The placeholder label also reflects the edited prompt.
+    const ph = calls.find((c) => c.action === 'replace-clip-with-placeholder')
+    expect((ph?.args as { prompt: string }).prompt).toContain('slow dolly in')
   })
 })

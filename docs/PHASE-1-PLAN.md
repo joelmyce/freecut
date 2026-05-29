@@ -806,9 +806,32 @@ we need is already in the transcript envelope.
 any given playhead frame; the highlight advances word-by-word as
 playback runs.
 
-### 6.12 Concept-card approval flow *(M5.2)*
+### 6.12 Concept-card approval flow *(M5.2)* ✅ **shipped + verified 2026-05-29**
 
 Spend-confirmation gate for expensive renders.
+
+**As built.** The gate mirrors the existing browser-action correlator: a
+tool calls `bridge.requestConfirmation(card, signal)`, the server sends a
+`pending-confirmation` message and `await`s, the chat renders an inline
+card, and the user's Approve / Edit / Reject sends `confirmation-response`
+which resolves the awaiting tool. Lives on `SocketBrowserActionBridge`
+(second pending-map + `handleConfirmationResponse`, 30-min timeout, also
+covered by `rejectAll` on disconnect). `requestConfirmation?` is an OPTIONAL
+method on `BrowserActionBridge` so existing tool/test mocks that omit it
+simply skip the gate.
+
+- **v1 consumer: `animate_image`** ("the still IS the card"). The gate runs
+  AFTER the read-only `read-image-clip-for-animation` (the still's fal URL
+  feeds the card preview) and BEFORE `replace-clip-with-placeholder`, so a
+  decline = zero timeline mutation (tool returns `status:"declined"`).
+- **`generate_broll` / `replace_clip_with_regeneration` intentionally left
+  UNGATED** in v1 to preserve their user-verified instant-placeholder UX.
+  Adopting the gate is a ~5-line `requestConfirmation` call before the
+  placeholder.
+- **Cost is a labeled estimate** (`estimateVideoGenerationCost`): fal returns
+  no price, so the card shows "~$X.XX est." — advisory only.
+- **Edit** is terminal (approve-with-overrides, no re-confirm loop in v1).
+  The card declares `editableFields`; animate_image exposes the motion prompt.
 
 **Pattern:** tools that exceed a cost/time threshold (configurable
 per-tool) return a `pending-confirmation` envelope instead of
@@ -822,9 +845,10 @@ buttons. Approve triggers the actual render with the same inputs.
   + voice sample.
 - Phase 2 storyboard scenes — each scene card IS a concept card.
 
-**Reserved bridge message types** (add to `apps/agent-server/src/bridge/protocol.ts`):
-- Server→Browser: `pending-confirmation { callId, title, summary, costEstimate, approveAction, rejectAction }`
-- Browser→Server: `confirmation-response { callId, decision: 'approve' | 'reject' | 'edit', edits?: Record<string, unknown> }`
+**Bridge message types (as built** — `confirmationId`, not `callId`, to avoid
+colliding with the SDK tool_use_id already carried by `tool-call`):
+- Server→Browser: `pending-confirmation { confirmationId } & ConfirmationCard`, where `ConfirmationCard = { title, summary, costEstimate?, previewImageUrl?, details?, editableFields?, approveLabel?, rejectLabel? }`
+- Browser→Server: `confirmation-response { confirmationId, decision: 'approve' | 'reject' | 'edit', edits?: Record<string, unknown> }`
 
 **Acceptance:** a tool flagged as expensive shows a card; clicking
 Approve runs the render; clicking Reject cancels the operation
@@ -1120,7 +1144,7 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M4.8** | GIF search + insert (Giphy) | `add_gif("excited reaction")` searches Giphy, drops the gif on the timeline as an animated image clip; one Ctrl+Z removes; returns top-N candidates so agent can offer alternatives | ✅ shipped + verified 2026-05-27 |
 | **M5** | `generate_voiceover` working — Kokoro (local) + ElevenLabs (cloud) | Both paths; inserts at playhead on a new audio track; correct duration; voice selection via chat | **NEXT** |
 | **M5.1** | Karaoke-style captions — per-word highlight at the millisecond it's spoken | New `karaoke_captions(asset_id, style?)` tool extends `SubtitleSegmentItem` with word-level highlight rendering; uses Whisper word timestamps we already cache; ~half-day of work | bundle with M5 |
-| **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | M5+ |
+| **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | ✅ shipped + verified 2026-05-29 (animate_image gated; image→animate Approve path confirmed live) |
 | **M6** | Smart editing decisions — chapter detection, find-the-moment, "this clip is too long" trim suggestions, motion-graphic template insertion | Each tool composes M4.6's `analyze_clip` + transcript + timeline state; all renders use FreeCut primitives (no Remotion); the chat starts to feel like a video editor *deciding*, not just executing | after M5 |
 | **M7** | Skills graduation — package stable multi-tool workflows as Claude Agent SDK skills (see VISION §13) | A workflow becomes a skill when (a) the agent has run it ≥3 times, (b) the composition is deterministic, (c) it can be described in one sentence. First candidates: `match_vibe_broll`, `karaoke_caption_pass`, `full_silence_cut` | after M6, ongoing |
 | **Hyperframe** | *(separate track, blocked)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse the M3 placeholder→swap pattern + M4.6 analysis grounding | When Hyperframe API docs available; placeholder→swap flow stays identical; **for AI-generated talking-head / avatar / lower-third content, Hyperframe is THE renderer** (not Remotion, not a CLI farm). Output drops onto FreeCut's timeline as ordinary media | blocked on API docs |

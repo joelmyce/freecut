@@ -10,7 +10,8 @@ interface ChatPanelProps {
 }
 
 export const ChatPanel = memo(function ChatPanel({ onClose }: ChatPanelProps) {
-  const { messages, activeTurnId, isConnected, send, cancel, clear } = useAgentChat()
+  const { messages, activeTurnId, isConnected, send, cancel, clear, respondToConfirmation } =
+    useAgentChat()
 
   return (
     <FloatingPanel
@@ -55,7 +56,11 @@ export const ChatPanel = memo(function ChatPanel({ onClose }: ChatPanelProps) {
       }
     >
       <div className="flex flex-col h-full min-h-0">
-        <MessageList messages={messages} isLoading={activeTurnId !== null} />
+        <MessageList
+          messages={messages}
+          isLoading={activeTurnId !== null}
+          onConfirm={respondToConfirmation}
+        />
         <ChatInput
           disabled={!isConnected}
           activeTurnId={activeTurnId}

@@ -1,4 +1,9 @@
-export type { BrowserActionBridge, ProviderContext, ProviderProgressEvent } from './types.ts'
+export type {
+  BrowserActionBridge,
+  ConfirmationDecision,
+  ProviderContext,
+  ProviderProgressEvent,
+} from './types.ts'
 export * as analysis from './analysis/index.ts'
 export * as gif from './gif/index.ts'
 export * as image from './image/index.ts'

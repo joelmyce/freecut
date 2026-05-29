@@ -1,6 +1,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
+import { estimateVideoGenerationCost } from '../providers/video/cost.ts'
 import { pickVideoGenerationProvider } from '../providers/video/router.ts'
 import type { VideoAspectRatio, VideoGenerationStrategy } from '../providers/video/types.ts'
 
@@ -103,24 +104,28 @@ const inputSchema = {
  *   1. read-image-clip-for-animation (browser, read-only) → returns the
  *      source still's mediaId + the original fal URL stored in its
  *      generation.json envelope.
- *   2. replace-clip-with-placeholder (browser, mutating) → captures a
+ *   2. requestConfirmation (M5.2) → shows the user a spend-approval card
+ *      (the still preview + estimated cost + editable motion prompt). Runs
+ *      BEFORE any mutation, so a decline leaves the timeline untouched.
+ *      Skipped automatically when the bridge has no confirmation channel.
+ *   3. replace-clip-with-placeholder (browser, mutating) → captures a
  *      pre-mutation snapshot of the timeline, removes the image clip,
  *      inserts a placeholder over the same range. M4.1's pattern.
- *   3. provider.generate with imageUrl set → fal Kling image-to-video
+ *   4. provider.generate with imageUrl set → fal Kling image-to-video
  *      returns the rendered MP4 URL.
- *   4. swap-generation-placeholder-with-url (browser, mutating) →
+ *   5. swap-generation-placeholder-with-url (browser, mutating) →
  *      replaces the placeholder with the actual video clip and writes
  *      generation.json. mediaKind defaults to 'video'.
  *
- * Single Ctrl+Z rewinds all three browser mutations because step 2 stashed
- * the pre-mutation snapshot under the placeholder id; the swap in step 4
+ * Single Ctrl+Z rewinds all three browser mutations because step 3 stashed
+ * the pre-mutation snapshot under the placeholder id; the swap in step 5
  * pushes ONE combined undo entry. Same semantics as
  * replace_clip_with_regeneration on AI-generated video clips.
  */
 export function createAnimateImageTool(options: CreateAnimateImageToolOptions) {
   return tool(
     'animate_image',
-    "Animate an AI-generated still image on the timeline into a moving video clip via fal Kling image-to-video. Replaces the still with the animated version in the same window — single Ctrl+Z restores the original still. Use this after generate_image to add motion while keeping text legible (text-to-video models would mangle the text, but image-to-video preserves the input frame as the starting point). Requires an AI-generated image clip — errors on non-image clips or images that weren't generated.",
+    'Animate an AI-generated still image on the timeline into a moving video clip via fal Kling image-to-video. Replaces the still with the animated version in the same window — single Ctrl+Z restores the original still. Use this after generate_image to add motion while keeping text legible (text-to-video models would mangle the text, but image-to-video preserves the input frame as the starting point). Requires an AI-generated image clip — errors on non-image clips or images that weren\'t generated. SPEND GATE: before rendering, the user sees an approval card in chat (the still preview + estimated cost) and must approve. If they decline, the tool returns status:"declined" and makes NO timeline change — report that you skipped it and do not retry unless the user asks again.',
     inputSchema,
     async (args) => {
       const strategy: VideoGenerationStrategy = args.provider ?? 'auto'
@@ -136,12 +141,71 @@ export function createAnimateImageTool(options: CreateAnimateImageToolOptions) {
         options.abortSignal,
       )
 
-      const motionPrompt = args.motion_prompt?.trim() || DEFAULT_MOTION_PROMPT
+      let motionPrompt = args.motion_prompt?.trim() || DEFAULT_MOTION_PROMPT
       const model = args.model ?? DEFAULT_IMAGE_TO_VIDEO_MODEL
 
-      // 2) Replace the still clip with a placeholder (M4.1 pattern).
-      //    The placeholder lives in the same trackId/from/durationInFrames
-      //    as the original image and a single Ctrl+Z will roll back here.
+      // Resolve the target duration BEFORE any mutation so the confirmation
+      // card can show it. Honor an explicit duration_sec; otherwise default to
+      // the still's existing timeline window length (clipInfo carries it). The
+      // browser handler doesn't return project FPS, so best-effort guess 30 —
+      // Kling snaps to its 3..15s enum regardless.
+      const FALLBACK_FPS = 30
+      let targetDurationSec =
+        args.duration_sec !== undefined
+          ? args.duration_sec
+          : Math.max(3, Math.round(clipInfo.durationInFrames / FALLBACK_FPS))
+
+      // 2) M5.2 spend-confirmation gate. The still IS the card. This runs
+      //    BEFORE any timeline mutation, so declining leaves the timeline
+      //    untouched. Skipped automatically when the bridge has no
+      //    confirmation channel (e.g. unit tests) — the render just proceeds.
+      if (options.bridge.requestConfirmation) {
+        const decision = await options.bridge.requestConfirmation(
+          {
+            title: 'Animate this still?',
+            summary: motionPrompt,
+            previewImageUrl: clipInfo.imageSourceUrl,
+            costEstimate: estimateVideoGenerationCost(model, targetDurationSec),
+            details: [
+              { label: 'Model', value: model.replace(/^fal-ai\//, '') },
+              { label: 'Duration', value: `${targetDurationSec}s` },
+              { label: 'Provider', value: provider.id },
+            ],
+            editableFields: [
+              { key: 'motion_prompt', label: 'Motion', value: motionPrompt, multiline: true },
+            ],
+            approveLabel: 'Animate',
+            rejectLabel: 'Skip',
+          },
+          options.abortSignal,
+        )
+
+        if (decision.decision === 'reject') {
+          const declined = {
+            status: 'declined' as const,
+            clipId: args.image_clip_id,
+            message: 'You declined to animate the still. No timeline changes were made.',
+          }
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(declined, null, 2) }],
+          }
+        }
+
+        if (decision.decision === 'edit' && decision.edits) {
+          const editedMotion = decision.edits.motion_prompt
+          if (typeof editedMotion === 'string' && editedMotion.trim().length > 0) {
+            motionPrompt = editedMotion.trim()
+          }
+          const editedDuration = decision.edits.duration_sec
+          if (typeof editedDuration === 'number' && Number.isFinite(editedDuration)) {
+            targetDurationSec = editedDuration
+          }
+        }
+      }
+
+      // 3) Replace the still clip with a placeholder (M4.1 pattern). The
+      //    placeholder lives in the same trackId/from/durationInFrames as the
+      //    original image and a single Ctrl+Z will roll back here.
       const placeholder = await options.bridge.invokeBrowserAction<ReplacePlaceholderResult>(
         'replace-clip-with-placeholder',
         {
@@ -153,20 +217,8 @@ export function createAnimateImageTool(options: CreateAnimateImageToolOptions) {
         options.abortSignal,
       )
 
-      // Honor the user's duration when supplied; otherwise default to the
-      // image's existing timeline window length (converted via the
-      // placeholder's durationInFrames). The browser handler doesn't return
-      // project FPS so we make a best-effort guess at 30 — Kling will snap
-      // to its 3..15 second enum regardless. Anyone overriding will pass
-      // duration_sec explicitly.
-      const FALLBACK_FPS = 30
-      const targetDurationSec =
-        args.duration_sec !== undefined
-          ? args.duration_sec
-          : Math.max(3, Math.round(placeholder.durationInFrames / FALLBACK_FPS))
-
       try {
-        // 3) Run the image-to-video model.
+        // 4) Run the image-to-video model.
         const generation = await provider.generate(
           {
             prompt: motionPrompt,
@@ -181,7 +233,7 @@ export function createAnimateImageTool(options: CreateAnimateImageToolOptions) {
           { bridge: options.bridge, signal: options.abortSignal },
         )
 
-        // 4) Swap placeholder with the rendered video. mediaKind defaults
+        // 5) Swap placeholder with the rendered video. mediaKind defaults
         //    to 'video' which is what we want here.
         const swap = await options.bridge.invokeBrowserAction<SwapPlaceholderResult>(
           'swap-generation-placeholder-with-url',
