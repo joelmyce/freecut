@@ -854,7 +854,7 @@ colliding with the SDK tool_use_id already carried by `tool-call`):
 Approve runs the render; clicking Reject cancels the operation
 without timeline mutation.
 
-### 6.13 Smart editing decisions *(M6 — multiple tools)*
+### 6.13 Smart editing decisions *(M6 — multiple tools)* ⏭️ **NEXT (chosen 2026-05-29)**
 
 Phase 1's last big push: tools that don't just *execute* user
 instructions but *make editing decisions*. Each composes M4.6's
@@ -1145,7 +1145,7 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M5** | `generate_voiceover` working — Kokoro (local) + ElevenLabs (cloud) | Both paths; inserts at playhead on a new audio track; correct duration; voice selection via chat | **NEXT** |
 | **M5.1** | Karaoke-style captions — per-word highlight at the millisecond it's spoken | New `karaoke_captions(asset_id, style?)` tool extends `SubtitleSegmentItem` with word-level highlight rendering; uses Whisper word timestamps we already cache; ~half-day of work | bundle with M5 |
 | **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | ✅ shipped + verified 2026-05-29 (animate_image gated; image→animate Approve path confirmed live) |
-| **M6** | Smart editing decisions — chapter detection, find-the-moment, "this clip is too long" trim suggestions, motion-graphic template insertion | Each tool composes M4.6's `analyze_clip` + transcript + timeline state; all renders use FreeCut primitives (no Remotion); the chat starts to feel like a video editor *deciding*, not just executing | after M5 |
+| **M6** | Smart editing decisions — chapter detection, find-the-moment, "this clip is too long" trim suggestions, motion-graphic template insertion | Each tool composes M4.6's `analyze_clip` + transcript + timeline state; all renders use FreeCut primitives (no Remotion); the chat starts to feel like a video editor *deciding*, not just executing | ⏭️ **NEXT** (M5–M5.2 shipped + verified 2026-05-29) |
 | **M7** | Skills graduation — package stable multi-tool workflows as Claude Agent SDK skills (see VISION §13) | A workflow becomes a skill when (a) the agent has run it ≥3 times, (b) the composition is deterministic, (c) it can be described in one sentence. First candidates: `match_vibe_broll`, `karaoke_caption_pass`, `full_silence_cut` | after M6, ongoing |
 | **Hyperframe** | *(separate track, blocked)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse the M3 placeholder→swap pattern + M4.6 analysis grounding | When Hyperframe API docs available; placeholder→swap flow stays identical; **for AI-generated talking-head / avatar / lower-third content, Hyperframe is THE renderer** (not Remotion, not a CLI farm). Output drops onto FreeCut's timeline as ordinary media | blocked on API docs |
 
