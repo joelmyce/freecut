@@ -621,7 +621,12 @@ audio-item insertion.
 **Acceptance:** user says `"add a voiceover saying 'welcome to the show'
 at the start"` → audio clip appears at 00:00 on an audio track.
 
-### 6.7 `analyze_clip` — Gemini video analysis *(M4.6, NEXT)*
+### 6.7 `analyze_clip` — Gemini video analysis *(M4.6)* ✅ **shipped 2026-05-27**
+
+> Verified end-to-end: 21MB clip → File API upload + poll-until-ACTIVE →
+> generateContent returned structured analysis → generate_broll composed
+> a matching b-roll. fal v1.5/standard 404'd mid-day → bumped default to
+> v3/standard. Detail in [status memory](../../.claude/projects/-Users-joelm-Documents-Antigravity-FreeCut/memory/ai-video-editor-status.md).
 
 **Signature:**
 ```
@@ -683,30 +688,45 @@ followed by `tool-call generate_broll` with a rich prompt that
 incorporates the analysis. The rendered b-roll visually matches the
 source clip's mood/lighting/pace.
 
-### 6.8 Hybrid silence detection upgrade *(M4.2-bis)*
+### 6.8 Hybrid silence detection upgrade *(M4.2-bis)* ✅ **shipped 2026-05-27**
 
 Pure-RMS silence detection occasionally clips trailing sibilants and
 leading consonants because it cuts at energy threshold without
 knowing where words actually end. HyperEdit pairs `silencedetect`
-with Whisper word boundaries and gets cleaner cuts; we should port.
+with Whisper word boundaries and gets cleaner cuts; we ported.
 
-**Change:** inside
-[`analyzeSilenceForItems`](../src/features/timeline/utils/silence-removal-preview.ts)
-or
-[`removeSilenceFromItems`](../src/features/timeline/stores/actions/edit/range-removal-actions.ts),
-after detecting silent ranges, look up the saved transcript's word
-timestamps and snap each range edge to the nearest word boundary
-within ~150ms. If no transcript exists for the media, fall back to
-the current pure-RMS behavior.
+**Implementation pivot.** The original plan called for tolerance-snap
+(±150ms to nearest Whisper word edge). That landed first, but live
+testing showed the RMS detector regularly fires INSIDE words at vowel
+↔ consonant transitions — the RMS edge sits 200-400ms deep, well
+outside the 150ms window. Result was mid-word cuts: "lo sigu" instead
+of "lo siguiente", "archi" instead of "archivos".
 
-**No new tools, no new dependencies — pure quality upgrade.** Bundle
-with M4.6 since both touch the analysis / transcript surface.
+**Final algorithm — word-span subtraction.** Treat each Whisper word
+as an authoritative "speech here" marker and SUBTRACT padded word
+spans (±50ms) from every raw silence range. Sub-spans shorter than
+`min_silence_sec` get dropped so we don't introduce micro-cuts. Falls
+back to raw RMS edges when no transcript or no per-word timestamps
+exist. Lives in
+[`refineSilenceRangesUsingWords`](../src/features/timeline/utils/silence-removal-preview.ts).
 
-**Acceptance:** silence cuts no longer amputate the trailing "s" of
-"yes" or the leading "n" of "now". Visible in waveform display
-zoomed to the cut.
+**Verified end-to-end:** 76 raw silence ranges → 13 refined for a
+5-min Spanish screen-recording (63 dropped as mid-word false
+positives). Words intact; cuts only land in true word-gap silence.
+Diagnostic emitted via `logger.warn` (Vite HMR only forwards warn/error
+to the dev terminal — `console.info` is swallowed; cross-cutting
+lesson baked into status memory).
 
-### 6.9 Image-then-animate b-roll path *(M4.7)*
+### 6.9 Image-then-animate b-roll path *(M4.7)* ✅ **shipped 2026-05-27** + auto-chain enhancement
+
+Both `generate_image` (fal `openai/gpt-image-2` at 2K default) and
+`animate_image` (fal Kling v3 image-to-video) shipped + verified. A
+follow-up commit (`32beb05c`) added an **auto-chain enhancement**:
+`analyze_clip`'s response gained a deterministic
+`hasOnScreenText: boolean` field, and the system prompt now branches
+on it — text-heavy "match the vibe" requests auto-route to
+`generate_image` → `animate_image` in the same turn (legible text
+survives), while text-free requests fall through to `generate_broll`.
 
 Second b-roll generation path alongside the existing text-to-video
 pipeline. Generates a still first, lets the user (or the agent) iterate
@@ -740,19 +760,23 @@ still IS the concept card.
 animate it"` → image appears on the timeline → after approval, the
 animated version swaps in.
 
-### 6.10 GIF search + insert *(M4.8)*
+### 6.10 GIF search + insert *(M4.8)* ✅ **shipped 2026-05-27**
 
-`add_gif(query, target_seconds?, track_id?)` — searches Giphy via
-their REST API (`/v1/gifs/search`), shows the top results in chat,
-downloads the picked one as a workspace asset, inserts on the timeline
-as an image item with autoplay enabled.
+`add_gif(query, start_seconds, end_seconds?, rating?, candidate_index?, limit?, track_id?, provider?)` —
+searches Giphy `/v1/gifs/search`, drops the chosen GIF on the timeline
+as an image clip (FreeCut's gif-frame-cache renders the animation)
+via the M3 placeholder→swap pattern. Returns top-N candidates as
+metadata so the agent can offer alternatives ("use the second one").
 
-**Why now:** small, cheap, agent-server-side wrapper. Plus the chat
-UX gets a new dimension — "react gif at the punchline" is a real
-editing workflow.
+**Architecture mirrors `image/`:** new `apps/agent-server/src/providers/gif/`
+with `types`, `giphy`, `router`, `index`. `ProvidersBundle` gained
+`gifSearch: ReadonlyArray<GifSearchProvider>` (opt-in via
+`GIPHY_API_KEY` in `.env`). System prompt teaches the "reaction gif /
+facepalm / gif of X" route vs `generate_image` vs `generate_broll`.
 
-**Acceptance:** user says `"add an excited reaction gif at 0:42"` →
-gif lands at 0:42 on a new image track.
+**Verified end-to-end** — "add an excited reaction gif at 0:30" landed
+a high-five GIF on a new track; Ctrl+Z restored. 21 new agent-server
+tests (Giphy provider 9, router 4, tool 7).
 
 ### 6.11 Karaoke-style captions *(M5.1)*
 
@@ -1089,12 +1113,12 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M1** | Agent transcribes a clip via chat (both providers) | Short clip → local; long clip → openai; cancellation; transcript file at expected path | ✅ local path verified; OpenAI/cancel paths owed |
 | **M2** | Agent adds subtitles via chat | Captions appear on new track; single undo removes them; replaceExisting works | ✅ done |
 | **M3** | Agent generates and inserts B-roll via chat | Placeholder appears; real clip swaps in; clip lands in Media Library with AI badge; single Ctrl+Z removes the final clip; `generation.json` written | ✅ happy path verified; cancel + failure visuals owed |
-| **M4** | `replace_clip_with_regeneration` + `cut_silence` working, with the cross-pollinated patterns from §6.5 (transcript-grounded prompts retrofit, chat UX upgrades, opt-in Gemini provider) | Regen swaps in place via the placeholder pattern with transcript context visible in logs; silence-cut preserves captions; undo restores; `transcribe clip using gemini` succeeds while plain `transcribe` still routes to Whisper; reference-pill picker in chat resolves "this clip" deterministically | ✅ code shipped 2026-05-26, awaiting user end-to-end verification (workspace-gate blocked headless validation; 84 agent-server + 23 agent-feature tests green + lint/typecheck/boundary checks clean) |
-| **M4.6** | Gemini frame+audio video analysis — "match the vibe" b-roll works without explicit camera/mood prompts | `analyze_clip` returns structured analysis JSON; agent composes a rich prompt from analysis + intent; generated b-roll visually matches the source clip's mood/lighting/pace; cost <$0.05/analysis | next |
-| **M4.2-bis** | Hybrid silence detection — clip silence boundaries to Whisper word edges instead of pure RMS | Same end behavior as M4.2 but cuts feel natural; no clipped trailing sibilants; no impact on the existing tool surface — pure quality upgrade inside `analyzeSilenceForItems` | small upgrade, bundle with M4.6 |
-| **M4.7** | Image-then-animate b-roll path (fal `gpt-image-2` for stills → fal Kling image-to-video for motion) | Still preview before animation; cheaper to iterate; agent can offer "regenerate the still" before paying the animation cost; lays groundwork for concept-card approval | after M4.6 |
-| **M4.8** | GIF search + insert (Giphy) | `add_gif("excited reaction")` searches Giphy, drops the gif on the timeline as a still image with autoplay; one Ctrl+Z removes | small; bundle with M4.7 if time permits |
-| **M5** | `generate_voiceover` working — Kokoro (local) + ElevenLabs (cloud) | Both paths; inserts at playhead on a new audio track; correct duration; voice selection via chat | next after M4.6/M4.7 |
+| **M4** | `replace_clip_with_regeneration` + `cut_silence` working, with the cross-pollinated patterns from §6.5 (transcript-grounded prompts retrofit, chat UX upgrades, opt-in Gemini provider) | Regen swaps in place via the placeholder pattern with transcript context visible in logs; silence-cut preserves captions; undo restores; `transcribe clip using gemini` succeeds while plain `transcribe` still routes to Whisper; reference-pill picker in chat resolves "this clip" deterministically | ✅ shipped + verified 2026-05-27 |
+| **M4.6** | Gemini frame+audio video analysis — "match the vibe" b-roll works without explicit camera/mood prompts | `analyze_clip` returns structured analysis JSON; agent composes a rich prompt from analysis + intent; generated b-roll visually matches the source clip's mood/lighting/pace; cost <$0.05/analysis | ✅ shipped + verified 2026-05-27 |
+| **M4.2-bis** | Hybrid silence detection — refine RMS edges with Whisper word timestamps | Word-span subtraction (not tolerance-snap — algorithm pivoted mid-implementation). Cuts only land in true word-gap silence; no mid-word amputation. Pure quality upgrade inside `analyzeSilenceForItems`. | ✅ shipped + verified 2026-05-27 |
+| **M4.7** | Image-then-animate b-roll path (fal `gpt-image-2` for stills → fal Kling image-to-video for motion) + auto-chain | Still preview before animation; cheaper to iterate. Auto-chain: `hasOnScreenText` on analyze_clip routes match-the-vibe requests to generate_image + animate_image in one turn (legible text survives). | ✅ shipped + verified 2026-05-27 |
+| **M4.8** | GIF search + insert (Giphy) | `add_gif("excited reaction")` searches Giphy, drops the gif on the timeline as an animated image clip; one Ctrl+Z removes; returns top-N candidates so agent can offer alternatives | ✅ shipped + verified 2026-05-27 |
+| **M5** | `generate_voiceover` working — Kokoro (local) + ElevenLabs (cloud) | Both paths; inserts at playhead on a new audio track; correct duration; voice selection via chat | **NEXT** |
 | **M5.1** | Karaoke-style captions — per-word highlight at the millisecond it's spoken | New `karaoke_captions(asset_id, style?)` tool extends `SubtitleSegmentItem` with word-level highlight rendering; uses Whisper word timestamps we already cache; ~half-day of work | bundle with M5 |
 | **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | M5+ |
 | **M6** | Smart editing decisions — chapter detection, find-the-moment, "this clip is too long" trim suggestions, motion-graphic template insertion | Each tool composes M4.6's `analyze_clip` + transcript + timeline state; all renders use FreeCut primitives (no Remotion); the chat starts to feel like a video editor *deciding*, not just executing | after M5 |
