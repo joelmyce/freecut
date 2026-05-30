@@ -11,6 +11,7 @@ export * as transcription from './transcription/index.ts'
 export * as tts from './tts/index.ts'
 export * as video from './video/index.ts'
 import type { VideoAnalysisProvider } from './analysis/types.ts'
+import type { TranscriptReasoningProvider } from './analysis/transcript-reasoning.ts'
 import type { GifSearchProvider } from './gif/types.ts'
 import type { ImageGenerationProvider } from './image/types.ts'
 import type { TranscriptionProvider } from './transcription/types.ts'
@@ -30,4 +31,12 @@ export interface ProvidersBundle {
   imageGeneration: ReadonlyArray<ImageGenerationProvider>
   gifSearch: ReadonlyArray<GifSearchProvider>
   tts: ReadonlyArray<TtsProvider>
+  /**
+   * Transcript-reasoning providers (M6 — find_moment, later detect_chapters /
+   * suggest_trims). OPTIONAL so the ~47 existing `ProvidersBundle` test
+   * literals stay untouched — same zero-churn trick M5.2 used for the bridge's
+   * optional `requestConfirmation`. Always set for real in `index.ts`; tools
+   * read it as `?? []` and the router throws if the list is empty.
+   */
+  transcriptReasoning?: ReadonlyArray<TranscriptReasoningProvider>
 }

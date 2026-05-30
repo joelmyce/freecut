@@ -108,6 +108,68 @@ describe('OpenAIWhisperProvider', () => {
     expect(stages).toEqual(['fetching-audio', 'uploading', 'transcribing', 'saving'])
   })
 
+  it('requests word timestamps and distributes them into the right segments', async () => {
+    const audio = {
+      bytes: Buffer.from('x').toString('base64'),
+      filename: 'm.wav',
+      mimeType: 'audio/wav',
+    }
+    const openaiResponse = {
+      text: 'hello world now',
+      language: 'en',
+      duration: 3,
+      segments: [
+        { start: 0, end: 1.5, text: 'hello world' },
+        { start: 1.5, end: 3, text: 'now' },
+      ],
+      words: [
+        { word: 'hello', start: 0.0, end: 0.5 },
+        { word: 'world', start: 0.6, end: 1.1 },
+        { word: 'now', start: 1.6, end: 2.0 },
+      ],
+    }
+    let savedTranscript: { segments?: ReadonlyArray<{ words?: unknown }> } | undefined
+    const bridge: BrowserActionBridge = {
+      invokeBrowserAction: vi.fn(async (action: string, args: unknown) => {
+        if (action === 'read-transcribable-audio') return audio
+        if (action === 'save-transcript') {
+          savedTranscript = (args as { transcript: typeof savedTranscript }).transcript
+          return undefined
+        }
+        throw new Error(`unexpected action: ${action}`)
+      }) as BrowserActionBridge['invokeBrowserAction'],
+    }
+    const fetchImpl = makeFetch({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: async () => openaiResponse,
+    })
+    const provider = new OpenAIWhisperProvider({ apiKey: 'sk-test', fetchImpl })
+    const transcript = await provider.transcribe(
+      { assetId: 'm1' },
+      { bridge, signal: new AbortController().signal },
+    )
+
+    // Words land in the segment whose time range contains their start.
+    expect(transcript.segments[0]?.words).toEqual([
+      { text: 'hello', start: 0, end: 0.5 },
+      { text: 'world', start: 0.6, end: 1.1 },
+    ])
+    expect(transcript.segments[1]?.words).toEqual([{ text: 'now', start: 1.6, end: 2.0 }])
+
+    // The request asked OpenAI for word-level timestamps.
+    const form = ((fetchImpl as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit])[1]
+      .body as FormData
+    expect(form.getAll('timestamp_granularities[]')).toContain('word')
+
+    // And the words flow through to the persisted transcript.
+    expect(savedTranscript?.segments?.[0]?.words).toEqual([
+      { text: 'hello', start: 0, end: 0.5 },
+      { text: 'world', start: 0.6, end: 1.1 },
+    ])
+  })
+
   it('throws when OpenAI returns a non-ok response', async () => {
     const bridge: BrowserActionBridge = {
       invokeBrowserAction: vi.fn(async () => ({

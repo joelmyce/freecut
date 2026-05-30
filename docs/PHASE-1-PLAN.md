@@ -854,26 +854,74 @@ colliding with the SDK tool_use_id already carried by `tool-call`):
 Approve runs the render; clicking Reject cancels the operation
 without timeline mutation.
 
-### 6.13 Smart editing decisions *(M6 — multiple tools)* ⏭️ **NEXT (chosen 2026-05-29)**
+### 6.13 Smart editing decisions *(M6 — multiple tools)* ⏭️ **IN PROGRESS — planned 2026-05-29**
 
 Phase 1's last big push: tools that don't just *execute* user
-instructions but *make editing decisions*. Each composes M4.6's
-`analyze_clip` + the transcript + the timeline state.
+instructions but *make editing decisions*. **Finalized build order
+(planned 2026-05-29, risk-ascending):** `find_moment` → `detect_chapters`
+→ `suggest_trims` form the **M6 core**; `add_motion_graphic` becomes
+**M6.4** (own planning pass) and the §6.5.5 intent router becomes
+**M6.5** (after the tools land).
 
-- `detect_chapters(asset_id?, granularity?)` — Gemini segments the
-  transcript/video into chapters; drops timeline markers. Composes
-  `analyze_clip` + transcript.
-- `find_moment(query)` — "when does the speaker mention pricing?" →
-  returns a timestamp. Single Gemini call over the transcript +
-  optional video frames.
-- `suggest_trims(clip_id)` — "this clip is too long" → analyzes
-  visually-redundant or low-content stretches, proposes 1-5 trim
-  ranges with rationale. User approves before any cut.
-- `add_motion_graphic(template, content, target_seconds)` — composes
-  FreeCut text + shape primitives into pre-defined templates (lower
-  third, title card, animated counter, etc.). NO Remotion; the
-  templates are pure FreeCut composition definitions stored in
-  `apps/agent-server/src/templates/`.
+**Composition decision — transcript-first.** M6 v1 reasons over the
+*transcript* (text + timestamps), NOT video bytes. `analyze_clip` (M4.6)
+returns *aesthetic* analysis (mood / lighting / palette) from video bytes;
+M6's decisions are *structural* (chapter boundaries, moment locations,
+low-content stretches) and are driven by the transcript. New capability:
+a **`TranscriptReasoningProvider`** (impl `GeminiTranscriptReasoningProvider`)
+under `apps/agent-server/src/providers/analysis/` with `findMoment` /
+`detectChapters` / `suggestTrims` methods — text-mode Gemini structured-JSON
+calls (no video bytes ⇒ no File-API path, ~1–2s, fractions of a cent),
+reusing the key-check + `responseSchema` machinery proven in
+`providers/analysis/gemini.ts`. **`analyze_clip` (video) is the v2
+visual-grounding seam** (visual moments, visual-redundancy trims) — NOT
+built in v1, per the "don't design for hypothetical requirements" rule.
+New read-only browser action `read-asset-transcript`; the orchestrator
+already auto-chains `transcribe` when the transcript is missing.
+
+**No new wire protocol** — every M6 tool reuses the existing
+`invoke-browser-action` correlator and the M5.2 `requestConfirmation` gate.
+
+- `find_moment(query, asset_id?)` — **M6 core, tool #1 (read-only).** "when
+  does the speaker mention pricing?" → `{ timestampSec, quote, confidence,
+  alternatives[] }`. Smallest vertical slice through the new capability;
+  de-risks the provider + transcript reader before anything destructive
+  depends on them. No mutation, no gate. `sideEffects: 'read'`.
+- `detect_chapters(asset_id?, granularity?)` — **M6 core, tool #2.** Segments
+  the transcript into chapters and drops all markers in ONE undo entry via a
+  new `add-chapter-markers` handler (batch marker action wrapping
+  `execute()`; a single Ctrl+Z clears the whole chapter set). Reuses #1's
+  provider + transcript reader. `sideEffects: 'mutate'`.
+- `suggest_trims(clip_id)` — **M6 core, tool #3 (highest-risk, built last).**
+  Proposes 1–5 low-content trim ranges (long pauses / rambling / filler /
+  repetition) with rationale. Mirrors `animate_image`'s read→confirm→mutate:
+  `read-clip-for-trims` (read-only) → `provider.suggestTrims` → **M5.2
+  `requestConfirmation`** (generalized from *spend* approval to *decision*
+  approval — the card lists the trims via the existing `details[]`,
+  Approve = "Trim all" / Reject = "Keep all"; per-range deselect is a v2
+  card enhancement) → on approve, `apply-trims` reuses the
+  `removeFillerWordsFromItems` sibling of `removeTimelineRangesFromItems`
+  (subtitle re-alignment + ripple + transition repair come free; one undo
+  entry). Reject → `status:"declined"`, zero mutation. `sideEffects: 'mutate'`.
+- `add_motion_graphic(template, content, target_seconds)` — **M6.4 (own
+  planning pass).** Composes FreeCut text + shape + keyframe primitives into
+  templates stored in `apps/agent-server/src/templates/`. NO Remotion.
+  **Scope boundary vs Hyperframe (user direction 2026-05-29):** build ONLY
+  the native-primitive templates where *live editability + zero render cost*
+  is the win — animated counters, simple title cards, basic text+shape lower
+  thirds the user will tweak repeatedly. Explicitly do NOT replicate the
+  stylized / avatar / talking-head / HeyGen-template lower thirds that
+  **Hyperframe** will own (those stay on the deferred Hyperframe track and
+  drop onto the timeline as rendered media via the M3 placeholder→swap
+  pattern). M6.4 must be planned against Hyperframe's *actual* template
+  inventory — ideally once its API docs are in hand — so the two libraries
+  stay complementary, not overlapping. See §6.3 and
+  [AI-EDITOR-VISION.md §9](AI-EDITOR-VISION.md).
+
+**Tool-surface growth:** M6 core takes the count 11 → 14 (13 ex-`echo`).
+The §6.5.5 intent router is **M6.5** (built after the tools, tuned against
+the real set with evidence of actual confusion); the §12.2 system-prompt
+decision tree lands *with* M6 core as the cheaper immediate mitigation.
 
 Each tool is itself a candidate to graduate into a skill (M7) once it
 proves stable.
@@ -1145,7 +1193,9 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M5** | `generate_voiceover` working — Kokoro (local) + ElevenLabs (cloud) | Both paths; inserts at playhead on a new audio track; correct duration; voice selection via chat | **NEXT** |
 | **M5.1** | Karaoke-style captions — per-word highlight at the millisecond it's spoken | New `karaoke_captions(asset_id, style?)` tool extends `SubtitleSegmentItem` with word-level highlight rendering; uses Whisper word timestamps we already cache; ~half-day of work | bundle with M5 |
 | **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | ✅ shipped + verified 2026-05-29 (animate_image gated; image→animate Approve path confirmed live) |
-| **M6** | Smart editing decisions — chapter detection, find-the-moment, "this clip is too long" trim suggestions, motion-graphic template insertion | Each tool composes M4.6's `analyze_clip` + transcript + timeline state; all renders use FreeCut primitives (no Remotion); the chat starts to feel like a video editor *deciding*, not just executing | ⏭️ **NEXT** (M5–M5.2 shipped + verified 2026-05-29) |
+| **M6** | Smart editing decisions — **core = `find_moment` → `detect_chapters` → `suggest_trims`** | Transcript-first reasoning via a new `TranscriptReasoningProvider`; find_moment returns a timestamp; detect_chapters drops markers in one undo entry; suggest_trims proposes ranges behind the M5.2 `requestConfirmation` gate, then cuts via `removeFillerWordsFromItems`; the chat starts to feel like an editor *deciding* | ⏭️ **IN PROGRESS** — planned 2026-05-29 |
+| **M6.4** | `add_motion_graphic` — FreeCut-native template insertion (animated counter, simple title card / lower third) | Pure FreeCut text+shape+keyframe compositions in `apps/agent-server/src/templates/`; **scoped as the complement to Hyperframe** (no stylized/avatar/HeyGen-template overlap — those stay on the Hyperframe track); planned in its own pass against Hyperframe's template inventory | planned, after M6 core |
+| **M6.5** | §6.5.5 intent router — per-turn tool-set pre-filter (keyword + Haiku fallback) | Built after M6 core takes the count to 14, tuned against the real tool set; §12.2 system-prompt decision tree is the in-M6 stopgap | planned, after M6 core |
 | **M7** | Skills graduation — package stable multi-tool workflows as Claude Agent SDK skills (see VISION §13) | A workflow becomes a skill when (a) the agent has run it ≥3 times, (b) the composition is deterministic, (c) it can be described in one sentence. First candidates: `match_vibe_broll`, `karaoke_caption_pass`, `full_silence_cut` | after M6, ongoing |
 | **Hyperframe** | *(separate track, blocked)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse the M3 placeholder→swap pattern + M4.6 analysis grounding | When Hyperframe API docs available; placeholder→swap flow stays identical; **for AI-generated talking-head / avatar / lower-third content, Hyperframe is THE renderer** (not Remotion, not a CLI farm). Output drops onto FreeCut's timeline as ordinary media | blocked on API docs |
 

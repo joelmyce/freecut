@@ -1,5 +1,10 @@
 import type { ProviderContext } from '../types.ts'
-import type { Transcript, TranscriptionInput, TranscriptionProvider } from './types.ts'
+import type {
+  Transcript,
+  TranscriptionInput,
+  TranscriptionProvider,
+  TranscriptSegment,
+} from './types.ts'
 
 const OPENAI_TRANSCRIPTIONS_URL = 'https://api.openai.com/v1/audio/transcriptions'
 
@@ -11,6 +16,12 @@ interface OpenAIVerboseJsonResponse {
     start: number
     end: number
     text: string
+  }>
+  /** Flat, top-level word list returned when `timestamp_granularities[]=word` is requested. */
+  words?: ReadonlyArray<{
+    word: string
+    start: number
+    end: number
   }>
 }
 
@@ -76,6 +87,10 @@ export class OpenAIWhisperProvider implements TranscriptionProvider {
     form.append('file', new Blob([audioBytes], { type: audio.mimeType }), audio.filename)
     form.append('model', input.model ?? this.model)
     form.append('response_format', 'verbose_json')
+    // Ask for word-level timestamps (needed for trim cut-snapping + karaoke).
+    // OpenAI returns these as a flat top-level `words` array beside `segments`.
+    form.append('timestamp_granularities[]', 'segment')
+    form.append('timestamp_granularities[]', 'word')
     if (input.language) {
       form.append('language', input.language)
     }
@@ -98,11 +113,7 @@ export class OpenAIWhisperProvider implements TranscriptionProvider {
       text: json.text,
       language: json.language,
       durationSec: json.duration ?? 0,
-      segments: (json.segments ?? []).map((s) => ({
-        text: s.text.trim(),
-        start: s.start,
-        end: s.end,
-      })),
+      segments: distributeWordsIntoSegments(json.segments ?? [], json.words ?? []),
     }
 
     ctx.onProgress?.({ stage: 'saving' })
@@ -118,4 +129,27 @@ export class OpenAIWhisperProvider implements TranscriptionProvider {
 
     return transcript
   }
+}
+
+/**
+ * OpenAI returns words as a flat top-level array; attach each word to the
+ * segment whose time range contains its start, so the saved transcript carries
+ * per-segment word timings (consumed by suggest_trims cut-snapping + karaoke).
+ * Falls back to word-less segments when no words were returned.
+ */
+function distributeWordsIntoSegments(
+  segments: ReadonlyArray<{ start: number; end: number; text: string }>,
+  words: ReadonlyArray<{ word: string; start: number; end: number }>,
+): TranscriptSegment[] {
+  return segments.map((segment) => {
+    const segmentWords = words
+      .filter((w) => w.start >= segment.start - 1e-3 && w.start < segment.end)
+      .map((w) => ({ text: w.word.trim(), start: w.start, end: w.end }))
+    return {
+      text: segment.text.trim(),
+      start: segment.start,
+      end: segment.end,
+      words: segmentWords.length > 0 ? segmentWords : undefined,
+    }
+  })
 }

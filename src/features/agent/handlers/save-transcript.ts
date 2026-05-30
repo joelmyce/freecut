@@ -9,7 +9,12 @@ interface SaveTranscriptArgs {
     text: string
     language?: string
     durationSec: number
-    segments: ReadonlyArray<{ text: string; start: number; end: number }>
+    segments: ReadonlyArray<{
+      text: string
+      start: number
+      end: number
+      words?: ReadonlyArray<{ text: string; start: number; end: number }>
+    }>
   }
 }
 
@@ -37,6 +42,7 @@ export const saveTranscriptHandler: BrowserActionHandler = async (rawArgs) => {
       text: s.text,
       start: s.start,
       end: s.end,
+      words: s.words?.map((w) => ({ text: w.text, start: w.start, end: w.end })),
     })),
     createdAt: now,
     updatedAt: now,

@@ -1,4 +1,6 @@
+import { addChapterMarkersHandler } from './add-chapter-markers'
 import { addSubtitlesHandler } from './add-subtitles'
+import { applyTrimsHandler } from './apply-trims'
 import {
   insertGenerationPlaceholderHandler,
   markGenerationPlaceholderErrorHandler,
@@ -6,6 +8,7 @@ import {
   swapGenerationPlaceholderHandler,
 } from './ai-generation'
 import { cutSilenceHandler } from './cut-silence'
+import { readAssetTranscriptHandler } from './read-asset-transcript'
 import { readClipVideoBytesHandler } from './read-clip-video-bytes'
 import { readImageClipForAnimationHandler } from './read-image-clip-for-animation'
 import { BrowserActionRegistry } from './registry'
@@ -33,6 +36,9 @@ export function createDefaultBrowserActionRegistry(): BrowserActionRegistry {
   registry.register('replace-clip-with-placeholder', replaceClipWithPlaceholderHandler)
   registry.register('read-transcript-context-for-range', readTranscriptContextForRangeHandler)
   registry.register('cut-silence', cutSilenceHandler)
+  registry.register('read-asset-transcript', readAssetTranscriptHandler)
+  registry.register('add-chapter-markers', addChapterMarkersHandler)
+  registry.register('apply-trims', applyTrimsHandler)
   registry.register('read-clip-video-bytes', readClipVideoBytesHandler)
   registry.register('read-image-clip-for-animation', readImageClipForAnimationHandler)
   registry.register('synthesize-voiceover-local', synthesizeVoiceoverLocalHandler)

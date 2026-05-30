@@ -19,7 +19,7 @@ const inputSchema = {
     .enum(['auto', 'local', 'openai', 'gemini'])
     .optional()
     .describe(
-      'Which provider to use. "auto" (default) picks local for clips under 30 minutes and OpenAI for longer clips when OPENAI_API_KEY is set. "gemini" routes to Gemini 3.5 Flash — opt-in only, never picked by auto. Engage Gemini ONLY when the user explicitly asks ("transcribe X using gemini"); requires GEMINI_API_KEY.',
+      'Which provider to use. "auto" (default) ALWAYS uses the local in-browser Whisper — it gives the best results on real content (including non-English) and never sends audio to the cloud. "openai" (OpenAI Whisper) and "gemini" (Gemini 3.5 Flash) are BOTH opt-in only and are never picked by auto. Engage them ONLY when the user explicitly names one ("transcribe X using openai" / "...using gemini"). OpenAI needs OPENAI_API_KEY; Gemini needs GEMINI_API_KEY.',
     ),
   language: z
     .string()

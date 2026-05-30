@@ -413,6 +413,88 @@ describe('items-store rate stretch', () => {
     expect(right.cues[1]).toMatchObject({ startSeconds: 2, endSeconds: 4 })
   })
 
+  it('splitItem rebases karaoke word timings with their cue (M5.1 highlight)', () => {
+    // Regression: word timings are segment-relative (same base as startSeconds),
+    // so a split must shift them with the cue. Without it, every post-split
+    // piece kept stale word times and the karaoke highlight froze on all but
+    // the first chunk. Times chosen to subtract cleanly off the 5s cut.
+    useTimelineSettingsStore.getState().setFps(30)
+    const segment: import('@/types/timeline').SubtitleSegmentItem = {
+      id: 'subs-karaoke',
+      type: 'subtitle',
+      trackId: 'track-captions',
+      from: 0,
+      durationInFrames: 300, // 10s at 30fps
+      label: 'Subs',
+      color: '#fff',
+      style: 'karaoke',
+      source: { type: 'subtitle-import', fileName: 'a.srt', format: 'srt', importedAt: 0 },
+      cues: [
+        {
+          id: 'a',
+          startSeconds: 0,
+          endSeconds: 2,
+          text: 'hi there',
+          words: [
+            { text: 'hi', start: 0, end: 0.5 },
+            { text: 'there', start: 0.5, end: 1.5 },
+          ],
+        },
+        {
+          id: 'b',
+          startSeconds: 4,
+          endSeconds: 6,
+          text: 'foo bar',
+          words: [
+            { text: 'foo', start: 4, end: 4.5 },
+            { text: 'bar', start: 5.5, end: 6 },
+          ],
+        },
+        {
+          id: 'c',
+          startSeconds: 7,
+          endSeconds: 9,
+          text: 'baz qux',
+          words: [
+            { text: 'baz', start: 7.5, end: 8 },
+            { text: 'qux', start: 8.5, end: 9 },
+          ],
+        },
+      ],
+    }
+
+    useItemsStore.getState().setItems([segment])
+    // Cut at frame 150 = 5s.
+    useItemsStore.getState()._splitItem('subs-karaoke', 150)
+    const left = useItemsStore
+      .getState()
+      .items.find((i) => i.id === 'subs-karaoke') as import('@/types/timeline').SubtitleSegmentItem
+    const right = useItemsStore
+      .getState()
+      .items.find(
+        (i) => i.id !== 'subs-karaoke' && i.type === 'subtitle',
+      ) as import('@/types/timeline').SubtitleSegmentItem
+
+    // Wholly-left cue keeps its original (unshifted) word times.
+    expect(left.cues.find((c) => c.id === 'a')?.words).toEqual([
+      { text: 'hi', start: 0, end: 0.5 },
+      { text: 'there', start: 0.5, end: 1.5 },
+    ])
+    // Straddle cue: left keeps only the pre-split word, unshifted.
+    expect(left.cues.find((c) => c.id === 'b')?.words).toEqual([
+      { text: 'foo', start: 4, end: 4.5 },
+    ])
+    // Straddle cue: right keeps the post-split word, rebased to the new origin.
+    expect(right.cues.find((c) => c.id === 'b-r')?.words).toEqual([
+      { text: 'bar', start: 0.5, end: 1 },
+    ])
+    // Wholly-right cue: every word rebased by the 5s split.
+    expect(right.cues.find((c) => c.id === 'c')?.words).toEqual([
+      { text: 'baz', start: 2.5, end: 3 },
+      { text: 'qux', start: 3.5, end: 4 },
+    ])
+  })
+
   it('rate stretch on left split clip preserves source boundaries', () => {
     // Simulate a left split clip with explicit bounds (as fixed by splitItem)
     const leftClip = makeVideoItem({

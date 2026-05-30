@@ -55,6 +55,32 @@ export function clearAllMarkers(): void {
   })
 }
 
+export interface ChapterMarkerInput {
+  frame: number
+  label: string
+  color?: string
+}
+
+/**
+ * Add a batch of markers in a SINGLE undo entry — used by the agent's
+ * detect_chapters tool. Calling addMarker() N times would push N separate undo
+ * entries; wrapping the whole batch in one execute() makes the chapter pass
+ * atomic, so a single Ctrl+Z clears all the chapter markers at once.
+ */
+export function addChapterMarkers(markers: ChapterMarkerInput[]): void {
+  if (markers.length === 0) return
+  execute(
+    'ADD_CHAPTER_MARKERS',
+    () => {
+      for (const marker of markers) {
+        useMarkersStore.getState().addMarker(marker.frame, marker.color, marker.label)
+      }
+      useTimelineSettingsStore.getState().markDirty()
+    },
+    { count: markers.length },
+  )
+}
+
 // =============================================================================
 // IN/OUT POINT ACTIONS
 // =============================================================================

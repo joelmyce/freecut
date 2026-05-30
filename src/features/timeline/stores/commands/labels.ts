@@ -98,8 +98,20 @@ export function formatTimelineCommandLabel(command: TimelineCommand): string {
   if (command.type === 'SET_OUT_POINT') return 'Set Out point'
   if (command.type === 'CLEAR_IN_OUT_POINTS') return 'Clear In/Out points'
   if (command.type === 'CLEAR_MARKERS') return 'Clear markers'
+  if (command.type === 'ADD_CHAPTER_MARKERS') {
+    const count = readCount(command.payload)
+    return count !== null
+      ? `Add ${count} chapter ${count === 1 ? 'marker' : 'markers'}`
+      : 'Add chapters'
+  }
   if (command.type === 'CLEAR_TIMELINE') return 'Clear timeline'
   if (command.type === 'REMOVE_FILLER_WORDS') return 'Remove filler words'
+  if (command.type === 'REMOVE_TRIMS') {
+    const count = readCount(command.payload)
+    return count !== null
+      ? `Trim ${count} ${count === 1 ? 'section' : 'sections'}`
+      : 'Trim sections'
+  }
 
   const count = readCount(command.payload)
   const base = toTitleCaseWords(command.type)

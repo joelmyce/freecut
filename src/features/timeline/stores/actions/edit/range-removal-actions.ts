@@ -9,6 +9,7 @@ import {
   sourceSecondsToTimelineFrame,
   getItemSourceSpanSeconds,
 } from '../../../utils/media-item-frames'
+import { computeTrimJunctionFades } from '../../../utils/trim-junction-fades'
 import { getUniqueLinkedItemAnchorIds } from '../../../utils/linked-items'
 import { isTrackSyncLockEnabled } from '../../../utils/track-sync-lock'
 import { propagateRemovedIntervalsToSyncLockedTracks } from '../sync-lock-ripple'
@@ -39,6 +40,15 @@ export interface RemoveSilenceResult {
 //      can leave a few frames of audible content on either side of a "fully
 //      silent" segment — 0.75 is permissive enough to remove those anyway.
 const SILENCE_COVERAGE_REMOVAL_THRESHOLD = 0.75
+
+/**
+ * Audio fade applied at each cut junction for agent-proposed trims (suggest_trims)
+ * so a content splice doesn't sound abrupt. Short enough not to swallow speech;
+ * capped per-piece at a fraction of its duration. Only the trim path opts in —
+ * silence/filler removal is unchanged. Bumped 0.08 → 0.12 to soften any residual
+ * word-tail the inward safety margin doesn't fully clear on imprecise word timings.
+ */
+const TRIM_JUNCTION_FADE_SEC = 0.12
 
 function isMostlyInsideRanges(
   span: { start: number; end: number },
@@ -188,10 +198,26 @@ export function removeFillerWordsFromItems(
   return removeTimelineRangesFromItems('REMOVE_FILLER_WORDS', itemIds, fillerRangesByMediaId)
 }
 
+/**
+ * Remove agent-proposed trim ranges (M6 suggest_trims). Same split + ripple +
+ * subtitle-realign machinery as silence/filler removal; the distinct
+ * `REMOVE_TRIMS` command type just gives the undo entry an honest label.
+ * Ranges are in source-native seconds, keyed by mediaId.
+ */
+export function removeTrimRangesFromItems(
+  itemIds: string[],
+  trimRangesByMediaId: Record<string, RemoveSilenceRange[]>,
+): RemoveSilenceResult {
+  return removeTimelineRangesFromItems('REMOVE_TRIMS', itemIds, trimRangesByMediaId, {
+    audioFadeSec: TRIM_JUNCTION_FADE_SEC,
+  })
+}
+
 function removeTimelineRangesFromItems(
-  commandType: 'REMOVE_SILENCE' | 'REMOVE_FILLER_WORDS',
+  commandType: 'REMOVE_SILENCE' | 'REMOVE_FILLER_WORDS' | 'REMOVE_TRIMS',
   itemIds: string[],
   rangesByMediaId: Record<string, RemoveSilenceRange[]>,
+  options?: { audioFadeSec?: number },
 ): RemoveSilenceResult {
   if (itemIds.length === 0) {
     return { analyzedItemCount: 0, removedItemCount: 0, splitCount: 0 }
@@ -310,6 +336,33 @@ function removeTimelineRangesFromItems(
 
       if (idsToRemove.size === 0) {
         return { analyzedItemCount: anchors.length, removedItemCount: 0, splitCount }
+      }
+
+      // Smooth each cut junction with a short audio fade (trim path only — the
+      // shared options default to no fade, so silence/filler are unchanged).
+      // Runs inside this execute() so the fades share the removal's undo entry.
+      const audioFadeSec = options?.audioFadeSec ?? 0
+      if (audioFadeSec > 0) {
+        const fadeStore = useItemsStore.getState()
+        for (const descriptor of anchorDescriptors) {
+          const pieces = currentItems.filter(
+            (candidate) =>
+              (candidate.type === 'video' || candidate.type === 'audio') &&
+              candidate.mediaId === descriptor.mediaId &&
+              (candidate.originId ?? candidate.id) === descriptor.originId,
+          )
+          for (const fade of computeTrimJunctionFades(
+            pieces,
+            idsToRemove,
+            audioFadeSec,
+            timelineFps,
+          )) {
+            const update: Partial<TimelineItem> = {}
+            if (fade.audioFadeIn !== undefined) update.audioFadeIn = fade.audioFadeIn
+            if (fade.audioFadeOut !== undefined) update.audioFadeOut = fade.audioFadeOut
+            fadeStore._updateItem(fade.id, update)
+          }
+        }
       }
 
       const removalResult = applyRippleRemoval(Array.from(idsToRemove))

@@ -10,10 +10,15 @@ export {
   replaceClipWithPlaceholder,
 } from '@/features/timeline/stores/actions/ai-generation-actions'
 export { addItem } from '@/features/timeline/stores/actions/item-actions'
+export {
+  addChapterMarkers,
+  type ChapterMarkerInput,
+} from '@/features/timeline/stores/actions/marker-actions'
 export { buildMediaTimelineItem } from '@/features/timeline/utils/media-timeline-item-builder'
 export { findCompatibleTrackForItemType } from '@/features/timeline/utils/track-item-compatibility'
 export {
   removeSilenceFromItems,
+  removeTrimRangesFromItems,
   type RemoveSilenceRange,
   type RemoveSilenceResult,
 } from '@/features/timeline/stores/actions/item-edit-actions'

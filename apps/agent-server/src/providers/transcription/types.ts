@@ -11,10 +11,18 @@ export interface TranscriptionInput {
   model?: string
 }
 
+export interface TranscriptWord {
+  text: string
+  start: number
+  end: number
+}
+
 export interface TranscriptSegment {
   text: string
   start: number
   end: number
+  /** Per-word timestamps when the provider returns them (used for cut snapping + karaoke). */
+  words?: TranscriptWord[]
 }
 
 export interface Transcript {

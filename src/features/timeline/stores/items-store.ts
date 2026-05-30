@@ -335,7 +335,14 @@ function trimSubtitleCuesAtStart(
     const startSeconds = Math.max(0, cue.startSeconds - offsetSeconds)
     const endSeconds = cue.endSeconds - offsetSeconds
     if (endSeconds <= startSeconds) continue
-    nextCues.push({ ...cue, startSeconds, endSeconds })
+    // Karaoke words are segment-relative too — shift them with the cue or the
+    // highlight freezes (see shiftCueWords).
+    nextCues.push({
+      ...cue,
+      startSeconds,
+      endSeconds,
+      words: shiftCueWords(cue.words, offsetSeconds),
+    })
   }
   return { cues: nextCues }
 }
@@ -355,9 +362,46 @@ function trimSubtitleCuesAtEnd(
     if (cue.startSeconds >= newEndSeconds) continue
     const endSeconds = Math.min(cue.endSeconds, newEndSeconds)
     if (endSeconds <= cue.startSeconds) continue
-    nextCues.push({ ...cue, endSeconds })
+    // Base is unchanged trimming from the end; just drop words past the new end.
+    nextCues.push({ ...cue, endSeconds, words: clampCueWordsBefore(cue.words, newEndSeconds) })
   }
   return { cues: nextCues }
+}
+
+/**
+ * Karaoke word timings are SEGMENT-relative — the same base the renderer
+ * compares `secondsIntoSegment` against (see `buildKaraokeSpans`). So any edit
+ * that moves a cue's `startSeconds` (split right-half, trim-from-start) MUST
+ * shift the cue's `words` by the same delta, or the highlight freezes on that
+ * piece (the words stay in the old base and never match the new playhead time).
+ * Subtracts `deltaSeconds` and drops words that finished at/before the new
+ * origin (they belong to the other half). Undefined-safe for SRT cues w/o words.
+ */
+function shiftCueWords(
+  words: import('@/types/timeline').SubtitleSegmentCue['words'],
+  deltaSeconds: number,
+): import('@/types/timeline').SubtitleSegmentCue['words'] {
+  if (!words) return undefined
+  const shifted: NonNullable<import('@/types/timeline').SubtitleSegmentCue['words']> = []
+  for (const word of words) {
+    const end = word.end - deltaSeconds
+    if (end <= 0) continue
+    shifted.push({ ...word, start: Math.max(0, word.start - deltaSeconds), end })
+  }
+  return shifted
+}
+
+/**
+ * Drop karaoke words that begin at/after `boundarySeconds` — for the earlier
+ * half of a split or a trim-from-end, where the later words moved to the other
+ * piece. No time shift (this half keeps its base). Undefined-safe.
+ */
+function clampCueWordsBefore(
+  words: import('@/types/timeline').SubtitleSegmentCue['words'],
+  boundarySeconds: number,
+): import('@/types/timeline').SubtitleSegmentCue['words'] {
+  if (!words) return undefined
+  return words.filter((word) => word.start < boundarySeconds)
 }
 
 function normalizeItemUpdates(updates: Partial<TimelineItem>): Partial<TimelineItem> {
@@ -1313,23 +1357,33 @@ export const useItemsStore = create<ItemsState & ItemsActions>()((set, get) => (
         const startsBeforeSplit = cue.startSeconds < splitSeconds
         const endsAfterSplit = cue.endSeconds > splitSeconds
         if (startsBeforeSplit && !endsAfterSplit) {
-          // Wholly in the left half.
+          // Wholly in the left half — keeps the original base, unchanged.
           leftCues.push(cue)
         } else if (!startsBeforeSplit) {
-          // Wholly in the right half — rebase to the new segment's `from`.
+          // Wholly in the right half — rebase the cue AND its karaoke words to
+          // the new segment's `from`. Shifting startSeconds/endSeconds without
+          // shifting `words` is what froze the karaoke highlight on every
+          // post-split piece (the words stayed in the pre-split time base).
           rightCues.push({
             ...cue,
             startSeconds: cue.startSeconds - splitSeconds,
             endSeconds: cue.endSeconds - splitSeconds,
+            words: shiftCueWords(cue.words, splitSeconds),
           })
         } else {
-          // Straddles the cut. Truncate left to splitSeconds, rebase right.
-          leftCues.push({ ...cue, endSeconds: splitSeconds })
+          // Straddles the cut. Left keeps its pre-split words; right keeps the
+          // rest, rebased — so each half highlights only its own words.
+          leftCues.push({
+            ...cue,
+            endSeconds: splitSeconds,
+            words: clampCueWordsBefore(cue.words, splitSeconds),
+          })
           rightCues.push({
             ...cue,
             id: `${cue.id}-r`,
             startSeconds: 0,
             endSeconds: cue.endSeconds - splitSeconds,
+            words: shiftCueWords(cue.words, splitSeconds),
           })
         }
       }

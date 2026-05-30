@@ -1,11 +1,5 @@
 import type { TranscriptionInput, TranscriptionProvider, TranscriptionStrategy } from './types.ts'
 
-// 30 minutes — picked as a starting heuristic in PHASE-1-PLAN.md §2.2.
-// Below this, local-whisper is preferred (free, no API call); above this,
-// route to cloud where available because long-running local transcription
-// blocks the browser tab.
-export const LONG_CLIP_THRESHOLD_SEC = 30 * 60
-
 export interface PickTranscriptionProviderResult {
   provider: TranscriptionProvider
   reason: string
@@ -14,7 +8,9 @@ export interface PickTranscriptionProviderResult {
 export function pickTranscriptionProvider(
   providers: ReadonlyArray<TranscriptionProvider>,
   strategy: TranscriptionStrategy,
-  input: TranscriptionInput,
+  // Kept for API symmetry with the analysis routers; routing no longer depends
+  // on clip duration now that cloud providers are explicit-only.
+  _input: TranscriptionInput,
 ): PickTranscriptionProviderResult {
   const findAvailable = (id: TranscriptionProvider['id']) =>
     providers.find((p) => p.id === id && p.isAvailable())
@@ -43,33 +39,23 @@ export function pickTranscriptionProvider(
     return { provider: gemini, reason: 'explicit strategy: gemini' }
   }
 
-  // PHASE-1-PLAN.md §6.5.4: Gemini is deliberately excluded from auto routing.
-  // The user has to ask for it by name. Local-first / OpenAI-fallback remains
-  // the default behavior for `auto`.
-  const isLong = (input.durationSec ?? 0) >= LONG_CLIP_THRESHOLD_SEC
-  if (isLong) {
-    const openai = findAvailable('openai-whisper')
-    if (openai) {
-      return {
-        provider: openai,
-        reason: `auto: clip >= ${LONG_CLIP_THRESHOLD_SEC}s, routing to openai`,
-      }
-    }
-  }
-
+  // PHASE-1-PLAN.md §6.5.4 + 2026-05-30 user decision: NEITHER Gemini nor OpenAI
+  // is auto-selected — both are explicit-only. Local whisper-small won on real
+  // (Spanish) content, and silently routing to a cloud Whisper surprised the
+  // user, so `auto` is always local-first. OpenAI stays a last-resort fallback
+  // ONLY when local is genuinely unavailable (e.g. WebCodecs/WebGPU missing) —
+  // never chosen by clip length.
   const local = findAvailable('local-whisper')
   if (local) {
     return {
       provider: local,
-      reason: isLong
-        ? `auto: clip >= ${LONG_CLIP_THRESHOLD_SEC}s but openai unavailable, falling back to local`
-        : 'auto: short clip, preferring local',
+      reason: 'auto: preferring local (cloud providers are explicit-only)',
     }
   }
 
   const openai = findAvailable('openai-whisper')
   if (openai) {
-    return { provider: openai, reason: 'auto: local unavailable, using openai' }
+    return { provider: openai, reason: 'auto: local unavailable, falling back to openai' }
   }
 
   throw new Error('No transcription provider is available')

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LONG_CLIP_THRESHOLD_SEC, pickTranscriptionProvider } from './router.ts'
+import { pickTranscriptionProvider } from './router.ts'
 import type { Transcript, TranscriptionProvider, TranscriptionProviderId } from './types.ts'
 
 function mockProvider(id: TranscriptionProviderId, available: boolean): TranscriptionProvider {
@@ -79,7 +79,7 @@ describe('pickTranscriptionProvider — gemini (opt-in)', () => {
     )
   })
 
-  it('NEVER picks gemini under auto, even when it is the only available provider for a long clip', () => {
+  it('NEVER picks gemini under auto, even when it is the only available provider', () => {
     const geminiOnly: ReadonlyArray<TranscriptionProvider> = [
       mockProvider('local-whisper', false),
       mockProvider('openai-whisper', false),
@@ -88,12 +88,12 @@ describe('pickTranscriptionProvider — gemini (opt-in)', () => {
     expect(() =>
       pickTranscriptionProvider(geminiOnly, 'auto', {
         assetId: 'm1',
-        durationSec: LONG_CLIP_THRESHOLD_SEC + 1,
+        durationSec: 3600,
       }),
     ).toThrow(/no transcription provider/i)
   })
 
-  it('auto prefers local/openai even when gemini is available', () => {
+  it('auto prefers local even when gemini is available', () => {
     const result = pickTranscriptionProvider(withGemini, 'auto', {
       assetId: 'm1',
       durationSec: 60,
@@ -111,29 +111,21 @@ describe('pickTranscriptionProvider — auto strategy', () => {
     expect(result.provider.id).toBe('local-whisper')
   })
 
-  it('picks openai for long clips when both providers are available', () => {
+  it('stays on local even for long clips — cloud providers are explicit-only', () => {
     const result = pickTranscriptionProvider(both, 'auto', {
       assetId: 'm1',
-      durationSec: LONG_CLIP_THRESHOLD_SEC + 1,
-    })
-    expect(result.provider.id).toBe('openai-whisper')
-  })
-
-  it('falls back to local when the clip is long but openai is unavailable', () => {
-    const result = pickTranscriptionProvider(localOnly, 'auto', {
-      assetId: 'm1',
-      durationSec: LONG_CLIP_THRESHOLD_SEC + 1,
+      durationSec: 3600,
     })
     expect(result.provider.id).toBe('local-whisper')
-    expect(result.reason).toMatch(/falling back to local/i)
   })
 
-  it('uses openai when local is unavailable', () => {
+  it('falls back to openai ONLY when local is unavailable', () => {
     const result = pickTranscriptionProvider(openaiOnly, 'auto', {
       assetId: 'm1',
       durationSec: 60,
     })
     expect(result.provider.id).toBe('openai-whisper')
+    expect(result.reason).toMatch(/local unavailable/i)
   })
 
   it('throws when no provider is available', () => {
@@ -142,7 +134,7 @@ describe('pickTranscriptionProvider — auto strategy', () => {
     )
   })
 
-  it('treats unknown duration as short and prefers local', () => {
+  it('treats unknown duration as local too', () => {
     const result = pickTranscriptionProvider(both, 'auto', { assetId: 'm1' })
     expect(result.provider.id).toBe('local-whisper')
   })

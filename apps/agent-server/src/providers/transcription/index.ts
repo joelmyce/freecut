@@ -9,8 +9,4 @@ export type {
 export { GeminiTranscriptionProvider, type GeminiTranscriptionProviderOptions } from './gemini.ts'
 export { LocalWhisperBrowserProxy } from './local-whisper.ts'
 export { OpenAIWhisperProvider, type OpenAIWhisperProviderOptions } from './openai-whisper.ts'
-export {
-  LONG_CLIP_THRESHOLD_SEC,
-  pickTranscriptionProvider,
-  type PickTranscriptionProviderResult,
-} from './router.ts'
+export { pickTranscriptionProvider, type PickTranscriptionProviderResult } from './router.ts'

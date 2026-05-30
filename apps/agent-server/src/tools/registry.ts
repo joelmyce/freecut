@@ -6,10 +6,13 @@ import { createAddSubtitlesTool } from './add-subtitles.ts'
 import { createAnalyzeClipTool } from './analyze-clip.ts'
 import { createAnimateImageTool } from './animate-image.ts'
 import { createCutSilenceTool } from './cut-silence.ts'
+import { createDetectChaptersTool } from './detect-chapters.ts'
+import { createFindMomentTool } from './find-moment.ts'
 import { createGenerateBrollTool } from './generate-broll.ts'
 import { createGenerateImageTool } from './generate-image.ts'
 import { createGenerateVoiceoverTool } from './generate-voiceover.ts'
 import { createReplaceClipWithRegenerationTool } from './replace-clip-with-regeneration.ts'
+import { createSuggestTrimsTool } from './suggest-trims.ts'
 import { createTranscribeTool } from './transcribe.ts'
 
 export const TOOL_MCP_SERVER_NAME = 'freecut'
@@ -32,6 +35,9 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
       createReplaceClipWithRegenerationTool(options),
       createCutSilenceTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
       createAnalyzeClipTool(options),
+      createFindMomentTool(options),
+      createDetectChaptersTool(options),
+      createSuggestTrimsTool(options),
       createGenerateImageTool(options),
       createAnimateImageTool(options),
       createAddGifTool(options),
@@ -52,6 +58,9 @@ export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__replace_clip_with_regeneration`,
   `mcp__${TOOL_MCP_SERVER_NAME}__cut_silence`,
   `mcp__${TOOL_MCP_SERVER_NAME}__analyze_clip`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__find_moment`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__detect_chapters`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__suggest_trims`,
   `mcp__${TOOL_MCP_SERVER_NAME}__generate_image`,
   `mcp__${TOOL_MCP_SERVER_NAME}__animate_image`,
   `mcp__${TOOL_MCP_SERVER_NAME}__add_gif`,

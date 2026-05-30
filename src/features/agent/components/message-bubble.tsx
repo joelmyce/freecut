@@ -185,7 +185,7 @@ function ConfirmationCard({
           )}
 
           {message.details && message.details.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] text-muted-foreground/80">
+            <div className="flex flex-col gap-y-0.5 font-mono text-[10px] text-muted-foreground/80">
               {message.details.map((d) => (
                 <span key={d.label}>
                   <span className="text-muted-foreground/60">{d.label}:</span> {d.value}
