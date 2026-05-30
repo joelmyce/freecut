@@ -1,4 +1,5 @@
 import { addChapterMarkersHandler } from './add-chapter-markers'
+import { addMotionGraphicHandler } from './add-motion-graphic'
 import { addSubtitlesHandler } from './add-subtitles'
 import { applyTrimsHandler } from './apply-trims'
 import {
@@ -38,6 +39,7 @@ export function createDefaultBrowserActionRegistry(): BrowserActionRegistry {
   registry.register('cut-silence', cutSilenceHandler)
   registry.register('read-asset-transcript', readAssetTranscriptHandler)
   registry.register('add-chapter-markers', addChapterMarkersHandler)
+  registry.register('add-motion-graphic', addMotionGraphicHandler)
   registry.register('apply-trims', applyTrimsHandler)
   registry.register('read-clip-video-bytes', readClipVideoBytesHandler)
   registry.register('read-image-clip-for-animation', readImageClipForAnimationHandler)

@@ -1,5 +1,10 @@
 export { useItemsStore } from '@/features/timeline/stores/items-store'
+export type { KeyframeAddPayload } from '@/features/timeline/stores/keyframes-store'
 export { useTimelineSettingsStore } from '@/features/timeline/stores/timeline-settings-store'
+export {
+  insertMotionGraphic,
+  type MotionGraphicLayer,
+} from '@/features/timeline/stores/actions/motion-graphic-actions'
 export { useMarkersStore } from '@/features/timeline/stores/markers-store'
 export { useCompositionNavigationStore } from '@/features/timeline/stores/composition-navigation-store'
 export {
