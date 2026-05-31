@@ -1016,6 +1016,24 @@ class MediaLibraryService {
   }
 
   /**
+   * Save a generated/rendered VIDEO file (e.g. a local HyperFrames render) into
+   * the project media library. Unlike {@link importMediaFromUrl}, the bytes are
+   * already in hand as a File, so this skips the remote-fetch path (which only
+   * accepts http(s) URLs) and goes straight through the general OPFS import —
+   * giving the clip full video metadata + a thumbnail, exactly like a
+   * user-imported file.
+   */
+  async importGeneratedVideo(
+    file: File,
+    projectId: string,
+  ): Promise<MediaMetadata & { isDuplicate?: boolean; hasUnsupportedCodec?: boolean }> {
+    if (!projectId) {
+      throw new Error('No project selected')
+    }
+    return this.importMediaFileToOpfs(file, projectId)
+  }
+
+  /**
    * Delete media from a project with reference counting
    *
    * Removes the media association from the project. If no other projects

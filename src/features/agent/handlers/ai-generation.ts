@@ -98,7 +98,16 @@ export const insertGenerationPlaceholderHandler: BrowserActionHandler = async (r
 
 interface SwapPlaceholderArgs {
   placeholderId: string
-  sourceUrl: string
+  /** Remote asset URL (fal flows). Provide this OR `sourceBytesBase64`. */
+  sourceUrl?: string
+  /**
+   * Base64-encoded media bytes produced locally (e.g. a HyperFrames render).
+   * When present, the bytes are wrapped in an object URL and imported through
+   * the exact same path as `sourceUrl` — no remote fetch.
+   */
+  sourceBytesBase64?: string
+  /** MIME type for `sourceBytesBase64`. Defaults to video/mp4. */
+  mediaMimeType?: string
   providerId: string
   modelId: string
   prompt: string
@@ -126,7 +135,9 @@ interface SwapPlaceholderResult {
 export const swapGenerationPlaceholderHandler: BrowserActionHandler = async (rawArgs, signal) => {
   const args = rawArgs as SwapPlaceholderArgs
   if (!args.placeholderId) throw new Error('swap-generation-placeholder requires placeholderId')
-  if (!args.sourceUrl) throw new Error('swap-generation-placeholder requires sourceUrl')
+  if (!args.sourceUrl && !args.sourceBytesBase64) {
+    throw new Error('swap-generation-placeholder requires sourceUrl or sourceBytesBase64')
+  }
 
   const items = useItemsStore.getState().items
   const placeholder = items.find((i) => i.id === args.placeholderId)
@@ -143,16 +154,36 @@ export const swapGenerationPlaceholderHandler: BrowserActionHandler = async (raw
 
   signal.throwIfAborted()
 
-  log.debug(`swap: importing ${args.sourceUrl} into project ${project.id}`)
-  // Use the store action (not the bare service) so the imported clip lands
-  // in the React media-library state — without this, the file is written
-  // to OPFS but the user can't see it in the Media Library panel.
+  // Two import sources. A remote URL (fal flows) goes through the URL store
+  // action. Local render bytes (HyperFrames) become a File and import via the
+  // generated-video path — the URL path rejects non-http(s) schemes by design,
+  // so we must not route object URLs through it.
   const libraryStore = useMediaLibraryStore.getState()
-  const imported = await libraryStore.importMediaFromUrl(args.sourceUrl)
-  const media = imported[0]
-  if (!media) {
-    const reason = useMediaLibraryStore.getState().error ?? 'unknown error'
-    throw new Error(`media library import failed: ${reason}`)
+  let media: Awaited<ReturnType<typeof mediaLibraryService.importGeneratedVideo>>
+  if (args.sourceBytesBase64) {
+    log.debug(`swap: importing local render bytes into project ${project.id}`)
+    const mimeType = args.mediaMimeType ?? 'video/mp4'
+    const file = new File(
+      [base64ToBlob(args.sourceBytesBase64, mimeType)],
+      `${args.providerId}-${crypto.randomUUID()}.${extensionForMimeType(mimeType)}`,
+      { type: mimeType },
+    )
+    media = await mediaLibraryService.importGeneratedVideo(file, project.id)
+    // Register in React state so the clip shows in the Media Library panel
+    // (the URL store action does this internally; the bare service does not).
+    libraryStore.prependMediaItem(media)
+  } else {
+    log.debug(`swap: importing ${args.sourceUrl} into project ${project.id}`)
+    // Use the store action (not the bare service) so the imported clip lands
+    // in the React media-library state — without this, the file is written to
+    // OPFS but the user can't see it in the Media Library panel.
+    const imported = await libraryStore.importMediaFromUrl(args.sourceUrl!)
+    const first = imported[0]
+    if (!first) {
+      const reason = useMediaLibraryStore.getState().error ?? 'unknown error'
+      throw new Error(`media library import failed: ${reason}`)
+    }
+    media = first
   }
   if ('hasUnsupportedCodec' in media && media.hasUnsupportedCodec) {
     throw new Error('Generated video has an unsupported codec; cannot import')
@@ -314,4 +345,21 @@ function resolveTargetVideoTrack(): string {
   }
   itemsStore.setTracks([...tracks, newTrack])
   return newTrack.id
+}
+
+/** Map a media MIME type to a file extension for the imported File's name. */
+function extensionForMimeType(mimeType: string): string {
+  if (mimeType.includes('webm')) return 'webm'
+  if (mimeType.includes('quicktime') || mimeType.includes('mov')) return 'mov'
+  return 'mp4'
+}
+
+/** Decode base64 media bytes (from a local render) into a Blob for import. */
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new Blob([bytes], { type: mimeType })
 }

@@ -2,6 +2,7 @@ import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
 import { echoTool } from './_stub.ts'
 import { createAddGifTool } from './add-gif.ts'
+import { createAddKineticTitleTool } from './add-kinetic-title.ts'
 import { createAddMotionGraphicTool } from './add-motion-graphic.ts'
 import { createAddSubtitlesTool } from './add-subtitles.ts'
 import { createAnalyzeClipTool } from './analyze-clip.ts'
@@ -44,6 +45,7 @@ export function createToolMcpServer(options: ToolRegistryOptions) {
       createAddGifTool(options),
       createGenerateVoiceoverTool(options),
       createAddMotionGraphicTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
+      createAddKineticTitleTool({ bridge: options.bridge, abortSignal: options.abortSignal }),
     ],
   })
 }
@@ -68,4 +70,5 @@ export const ALLOWED_TOOL_NAMES = [
   `mcp__${TOOL_MCP_SERVER_NAME}__add_gif`,
   `mcp__${TOOL_MCP_SERVER_NAME}__generate_voiceover`,
   `mcp__${TOOL_MCP_SERVER_NAME}__add_motion_graphic`,
+  `mcp__${TOOL_MCP_SERVER_NAME}__add_kinetic_title`,
 ]
