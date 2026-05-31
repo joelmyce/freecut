@@ -47,6 +47,9 @@ export async function renderKineticTitle(
       subtitle: options.subtitle,
       accentColor: options.accentColor,
       backgroundColor: options.backgroundColor,
+      titleColor: options.titleColor,
+      subtitleColor: options.subtitleColor,
+      fontFamily: options.fontFamily,
     },
     { durationSec: options.durationSec, width: options.width, height: options.height },
   )

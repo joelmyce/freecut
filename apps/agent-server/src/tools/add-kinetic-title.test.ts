@@ -108,6 +108,32 @@ describe('createAddKineticTitleTool', () => {
     expect(insert.args).toMatchObject({ startSeconds: 0, endSeconds: 4 })
   })
 
+  it('forwards branding params (colors + Google font) to the renderer', async () => {
+    const { bridge } = makeBridge()
+    const render = vi.fn(fakeRender)
+    const tool = createAddKineticTitleTool({
+      bridge,
+      abortSignal: new AbortController().signal,
+      render,
+    })
+    await callTool(tool, {
+      title: 'Hi',
+      start_seconds: 0,
+      title_color: '#F5C518',
+      background_color: '#2A0E4F',
+      subtitle_color: '#ABCDEF',
+      font_family: 'Montserrat',
+    })
+    expect(render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        titleColor: '#F5C518',
+        backgroundColor: '#2A0E4F',
+        subtitleColor: '#ABCDEF',
+        fontFamily: 'Montserrat',
+      }),
+    )
+  })
+
   it('marks the placeholder as errored when the render fails (and rethrows)', async () => {
     const { bridge, calls } = makeBridge()
     const render: KineticTitleRenderer = async () => {

@@ -8,6 +8,10 @@ export type KineticTitleRenderer = (args: {
   title: string
   subtitle?: string
   accentColor?: string
+  backgroundColor?: string
+  titleColor?: string
+  subtitleColor?: string
+  fontFamily?: string
   durationSec: number
   signal?: AbortSignal
 }) => Promise<RenderCompositionResult>
@@ -51,6 +55,26 @@ const inputSchema = {
     .describe(
       'Optional CSS color (hex like "#22D3EE" or a name) for the accent underline + sheen. Defaults to indigo (#6366F1).',
     ),
+  title_color: z
+    .string()
+    .optional()
+    .describe('Optional CSS color for the headline text. Defaults to white.'),
+  background_color: z
+    .string()
+    .optional()
+    .describe(
+      'Optional CSS color for the card background (the center of the radial gradient). Defaults to a near-black navy.',
+    ),
+  subtitle_color: z
+    .string()
+    .optional()
+    .describe('Optional CSS color for the subtitle text. Defaults to light grey.'),
+  font_family: z
+    .string()
+    .optional()
+    .describe(
+      'Optional Google Fonts family name to brand the type — e.g. "Montserrat", "Poppins", "Playfair Display", "Inter". Loaded from Google Fonts at render; falls back to a system sans if unavailable. Pass the family name exactly as Google lists it.',
+    ),
   start_seconds: z
     .number()
     .min(0)
@@ -81,7 +105,7 @@ export function createAddKineticTitleTool(options: CreateAddKineticTitleToolOpti
 
   return tool(
     'add_kinetic_title',
-    'Render a STYLIZED, ANIMATED title card locally (free, no API) via the HyperFrames engine and drop it on the timeline. Use when the user wants a fancy/animated/"motion-designed" title with effects beyond plain text — "animated title", "kinetic title", "cinematic intro title", "stylized title card". The words stagger in with a blur-clear, an accent underline wipes open, an optional subtitle fades up. This is a RENDERED clip (takes ~10-30s; a placeholder shows while it renders, then the finished clip swaps in — one Ctrl+Z removes it). For a SIMPLE, instantly-editable title you will tweak by hand, prefer add_motion_graphic template:"title_card" instead — this tool trades live editability for richer motion. Provide title (required), optionally subtitle, accent_color, start_seconds, and target_seconds (default 4s).',
+    'Render a STYLIZED, ANIMATED title card locally (free, no API) via the HyperFrames engine and drop it on the timeline. Use when the user wants a fancy/animated/"motion-designed" title with effects beyond plain text — "animated title", "kinetic title", "cinematic intro title", "stylized title card". The words stagger in with a blur-clear, an accent underline wipes open, an optional subtitle fades up. This is a RENDERED clip (takes ~10-30s; a placeholder shows while it renders, then the finished clip swaps in — one Ctrl+Z removes it). For a SIMPLE, instantly-editable title you will tweak by hand, prefer add_motion_graphic template:"title_card" instead — this tool trades live editability for richer motion. Provide title (required); optionally subtitle, start_seconds, and target_seconds (default 4s). For BRANDING, pass any of: accent_color, title_color, background_color, subtitle_color (CSS colors), and font_family (a Google Fonts name like "Montserrat" / "Poppins" / "Playfair Display"). Use these whenever the user names brand colors or a font, or asks to "match my brand".',
     inputSchema,
     async (args) => {
       const durationSec = args.target_seconds ?? DEFAULT_DURATION_SEC
@@ -107,6 +131,10 @@ export function createAddKineticTitleTool(options: CreateAddKineticTitleToolOpti
           title: args.title,
           subtitle: args.subtitle,
           accentColor: args.accent_color,
+          backgroundColor: args.background_color,
+          titleColor: args.title_color,
+          subtitleColor: args.subtitle_color,
+          fontFamily: args.font_family,
           durationSec,
           signal: options.abortSignal,
         })
@@ -124,6 +152,10 @@ export function createAddKineticTitleTool(options: CreateAddKineticTitleToolOpti
             providerInputs: {
               template: 'kinetic_title',
               accentColor: args.accent_color,
+              backgroundColor: args.background_color,
+              titleColor: args.title_color,
+              subtitleColor: args.subtitle_color,
+              fontFamily: args.font_family,
               durationSec,
             },
           },

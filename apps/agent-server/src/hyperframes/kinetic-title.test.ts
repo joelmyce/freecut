@@ -60,4 +60,51 @@ describe('buildKineticTitleHtml', () => {
     expect(html).toContain('data-width="1920"')
     expect(html).toContain('data-height="1080"')
   })
+
+  it('applies custom title, subtitle, and background colors', () => {
+    const html = buildKineticTitleHtml(
+      {
+        title: 'X',
+        subtitle: 'y',
+        titleColor: '#F5C518',
+        subtitleColor: '#ABCDEF',
+        backgroundColor: '#2A0E4F',
+      },
+      { durationSec: 3 },
+    )
+    expect(html).toContain('#F5C518')
+    expect(html).toContain('#ABCDEF')
+    expect(html).toContain('#2A0E4F')
+  })
+
+  it('loads a Google font and uses it in the font stack', () => {
+    const html = buildKineticTitleHtml({ title: 'X', fontFamily: 'Montserrat' }, { durationSec: 3 })
+    expect(html).toContain('fonts.googleapis.com/css2?family=Montserrat')
+    expect(html).toContain('"Montserrat"')
+  })
+
+  it('url-encodes multi-word font names (space → +)', () => {
+    const html = buildKineticTitleHtml(
+      { title: 'X', fontFamily: 'Playfair Display' },
+      { durationSec: 3 },
+    )
+    expect(html).toContain('family=Playfair+Display')
+    expect(html).toContain('"Playfair Display"')
+  })
+
+  it('uses the system fallback (no Google link) when no font is given', () => {
+    const html = buildKineticTitleHtml({ title: 'X' }, { durationSec: 3 })
+    expect(html).not.toContain('fonts.googleapis.com')
+    expect(html).toContain('Helvetica Neue')
+  })
+
+  it('sanitizes colors and font names against CSS / URL injection', () => {
+    const html = buildKineticTitleHtml(
+      { title: 'X', titleColor: 'red;}html{opacity:0', fontFamily: 'Evil<script>' },
+      { durationSec: 3 },
+    )
+    expect(html).not.toContain(';}html{') // CSS-break chars stripped from the color
+    expect(html).not.toContain('Evil<script>') // dangerous chars stripped from the font name
+    expect(html).toContain('"Evilscript"') // reduced to a safe token
+  })
 })

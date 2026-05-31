@@ -21,6 +21,16 @@ export interface KineticTitleContent {
   accentColor?: string
   /** Background color of the card. Default near-black navy. */
   backgroundColor?: string
+  /** Title text color. Default white. */
+  titleColor?: string
+  /** Subtitle text color. Default slate-300. */
+  subtitleColor?: string
+  /**
+   * Google Fonts family name (e.g. "Montserrat", "Poppins", "Playfair Display").
+   * Loaded from Google Fonts at render and inlined by HyperFrames; falls back to
+   * a system sans stack when unset or unavailable.
+   */
+  fontFamily?: string
 }
 
 export interface KineticTitleOptions {
@@ -31,6 +41,22 @@ export interface KineticTitleOptions {
 
 const DEFAULT_ACCENT = '#6366F1' // indigo-500
 const DEFAULT_BG = '#0B1020'
+const DEFAULT_TITLE_COLOR = '#FFFFFF'
+const DEFAULT_SUBTITLE_COLOR = '#CBD5E1' // slate-300
+const FALLBACK_FONT_STACK = '"Helvetica Neue", Helvetica, Arial, sans-serif'
+
+/** Strip characters that could break out of a CSS value (colors are user input). */
+function sanitizeCssValue(value: string): string {
+  return value.replace(/[;{}<>"'\n\r]/g, '').trim()
+}
+
+/** Reduce a Google Fonts family name to a safe URL/CSS token (letters/digits/space). */
+function sanitizeFontFamily(value: string): string {
+  return value
+    .replace(/[^A-Za-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -49,8 +75,19 @@ export function buildKineticTitleHtml(
   const width = options.width ?? 1920
   const height = options.height ?? 1080
   const durationSec = Math.max(1.5, options.durationSec)
-  const accent = (content.accentColor?.trim() || DEFAULT_ACCENT).replace(/"/g, '')
-  const background = (content.backgroundColor?.trim() || DEFAULT_BG).replace(/"/g, '')
+  const accent = sanitizeCssValue(content.accentColor?.trim() || DEFAULT_ACCENT)
+  const background = sanitizeCssValue(content.backgroundColor?.trim() || DEFAULT_BG)
+  const titleColor = sanitizeCssValue(content.titleColor?.trim() || DEFAULT_TITLE_COLOR)
+  const subtitleColor = sanitizeCssValue(content.subtitleColor?.trim() || DEFAULT_SUBTITLE_COLOR)
+
+  // Optional brand font, loaded from Google Fonts (HyperFrames inlines it).
+  const fontName = content.fontFamily ? sanitizeFontFamily(content.fontFamily) : ''
+  const fontStack = fontName ? `"${fontName}", ${FALLBACK_FONT_STACK}` : FALLBACK_FONT_STACK
+  const fontLink = fontName
+    ? `<link rel="preconnect" href="https://fonts.googleapis.com" />` +
+      `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />` +
+      `<link href="https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;500;700;800&display=swap" rel="stylesheet" />`
+    : ''
 
   const title = content.title?.trim() || 'Title'
   const subtitle = content.subtitle?.trim()
@@ -79,6 +116,7 @@ export function buildKineticTitleHtml(
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=${width}, height=${height}" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    ${fontLink}
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: ${width}px; height: ${height}px; overflow: hidden; }
@@ -87,13 +125,13 @@ export function buildKineticTitleHtml(
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: ${Math.round(height * 0.03)}px;
         background: radial-gradient(circle at 50% 38%, ${background} 0%, #05070d 100%);
-        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-family: ${fontStack};
         text-align: center;
       }
       #title {
         max-width: ${Math.round(width * 0.84)}px;
         font-size: ${titleSize}px; font-weight: 800; line-height: 1.05;
-        letter-spacing: -2px; color: #ffffff;
+        letter-spacing: -2px; color: ${titleColor};
       }
       .word { display: inline-block; will-change: transform, filter, opacity; }
       .accent {
@@ -103,7 +141,7 @@ export function buildKineticTitleHtml(
         will-change: transform;
       }
       .subtitle {
-        font-size: ${subtitleSize}px; font-weight: 500; color: #cbd5e1;
+        font-size: ${subtitleSize}px; font-weight: 500; color: ${subtitleColor};
         letter-spacing: 0.5px; max-width: ${Math.round(width * 0.6)}px;
       }
     </style>
