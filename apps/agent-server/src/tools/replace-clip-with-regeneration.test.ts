@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createReplaceClipWithRegenerationTool } from './replace-clip-with-regeneration.ts'
-import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
+import type {
+  BrowserActionBridge,
+  ConfirmationDecision,
+  ProvidersBundle,
+} from '../providers/index.ts'
+import type { ConfirmationCard } from '../bridge/protocol.ts'
 import type { VideoGenerationProvider } from '../providers/video/index.ts'
 
 function mockProvider(
@@ -86,6 +91,31 @@ function recordingBridge(overrides: BridgeOverrides = {}) {
     },
   }
   return { bridge, calls }
+}
+
+/** Wraps recordingBridge with a fixed-decision M5.2 spend gate; records cards. */
+function confirmingBridge(decision: ConfirmationDecision, overrides: BridgeOverrides = {}) {
+  const base = recordingBridge(overrides)
+  const cards: ConfirmationCard[] = []
+  const bridge: BrowserActionBridge = {
+    invokeBrowserAction: base.bridge.invokeBrowserAction,
+    requestConfirmation: async (card: ConfirmationCard) => {
+      cards.push(card)
+      return decision
+    },
+  }
+  return { bridge, calls: base.calls, cards }
+}
+
+function providersWith(provider: VideoGenerationProvider): ProvidersBundle {
+  return {
+    transcription: [],
+    videoGeneration: [provider],
+    analysis: [],
+    imageGeneration: [],
+    gifSearch: [],
+    tts: [],
+  }
 }
 
 async function callTool(
@@ -399,6 +429,61 @@ describe('createReplaceClipWithRegenerationTool', () => {
     expect(sentPrompt).toContain('VIDEO CONTEXT')
     expect(sentPrompt).toContain('the city never sleeps')
     expect(sentPrompt).toContain('rainy street at night')
+  })
+
+  it('M5.2 gate: approve shows a cost card (mode + prompt), then regenerates', async () => {
+    const provider = mockProvider('fal')
+    const { bridge, calls, cards } = confirmingBridge({ decision: 'approve' })
+    const generateSpy = vi.spyOn(provider, 'generate')
+    const toolDef = createReplaceClipWithRegenerationTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    await callTool(toolDef, { clip_id: 'item-old' })
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.summary).toBe('neon city skyline at dusk')
+    expect(cards[0]?.costEstimate?.isEstimate).toBe(true)
+    expect(calls.map((c) => c.action)).toContain('replace-clip-with-placeholder')
+    expect(generateSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('M5.2 gate: reject returns status:"declined" and leaves the original clip unchanged', async () => {
+    const provider = mockProvider('fal')
+    const { bridge, calls, cards } = confirmingBridge({ decision: 'reject' })
+    const generateSpy = vi.spyOn(provider, 'generate')
+    const toolDef = createReplaceClipWithRegenerationTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    const result = await callTool(toolDef, { clip_id: 'item-old' })
+    const parsed = JSON.parse((result.content[0] as { text: string }).text)
+    expect(parsed.status).toBe('declined')
+    expect(cards).toHaveLength(1)
+    expect(generateSpy).not.toHaveBeenCalled()
+    // Only the read-only step ran — no placeholder, no swap.
+    expect(calls.map((c) => c.action)).toEqual(['read-clip-for-regen'])
+  })
+
+  it('M5.2 gate: edit applies the prompt override to the render + placeholder', async () => {
+    const provider = mockProvider('fal')
+    const { bridge, calls } = confirmingBridge({
+      decision: 'edit',
+      edits: { prompt: 'a calmer wide establishing shot' },
+    })
+    const generateSpy = vi.spyOn(provider, 'generate')
+    const toolDef = createReplaceClipWithRegenerationTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    await callTool(toolDef, { clip_id: 'item-old' })
+    expect(generateSpy.mock.calls[0]?.[0].prompt).toBe('a calmer wide establishing shot')
+    const replaceArgs = calls.find((c) => c.action === 'replace-clip-with-placeholder')?.args as
+      | Record<string, unknown>
+      | undefined
+    expect(replaceArgs?.prompt).toBe('a calmer wide establishing shot')
   })
 
   it('on provider failure: marks placeholder error and rethrows', async () => {

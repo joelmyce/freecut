@@ -1,6 +1,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
+import { estimateVideoGenerationCost } from '../providers/video/cost.ts'
 import { pickVideoGenerationProvider } from '../providers/video/router.ts'
 import type {
   VideoAspectRatio,
@@ -8,6 +9,12 @@ import type {
   VideoGenerationStrategy,
 } from '../providers/video/types.ts'
 import { buildTranscriptContextBlock } from './prompt-grounding.ts'
+
+/**
+ * Fallback model id for the M5.2 cost estimate + card display when the original
+ * model is unknown and the caller didn't override it.
+ */
+const DEFAULT_REGEN_MODEL = 'fal-ai/kling-video/v3/standard/text-to-video'
 
 export interface CreateReplaceClipToolOptions {
   bridge: BrowserActionBridge
@@ -90,7 +97,7 @@ const inputSchema = {
 export function createReplaceClipWithRegenerationTool(options: CreateReplaceClipToolOptions) {
   return tool(
     'replace_clip_with_regeneration',
-    "Regenerate an AI-generated clip in place by removing it and dropping a placeholder over the same track + time range, then swapping in the new render when it finishes. By default reuses the clip's original prompt (recovered from generation.json); pass new_prompt to override. Errors clearly if the clip was never AI-generated and no new_prompt is provided. Transcript-grounded — if a transcript covers the clip's source window, it is prepended to the prompt for stylistic consistency. Single Ctrl+Z restores the original clip.",
+    'Regenerate an AI-generated clip in place by removing it and dropping a placeholder over the same track + time range, then swapping in the new render when it finishes. SPEND GATE: before rendering, the user sees an approval card in chat (the prompt + estimated cost) and must approve; if they decline, the tool returns status:"declined" and the ORIGINAL clip is left unchanged — report that you left it as-is and do not retry unless the user asks again. By default reuses the clip\'s original prompt (recovered from generation.json); pass new_prompt to override. Errors clearly if the clip was never AI-generated and no new_prompt is provided. Transcript-grounded — if a transcript covers the clip\'s source window, it is prepended to the prompt for stylistic consistency. Single Ctrl+Z restores the original clip.',
     inputSchema,
     async (args) => {
       if (args.new_prompt && args.prompt_modifier) {
@@ -113,7 +120,7 @@ export function createReplaceClipWithRegenerationTool(options: CreateReplaceClip
       // If neither user input nor an original prompt is available, error before
       // any timeline mutation.
       const originalPrompt = clipInfo.originalGeneration?.prompt
-      let basePrompt: string | undefined
+      let basePrompt: string
       let regenMode: 'identity' | 'modifier' | 'replacement'
       if (args.new_prompt) {
         basePrompt = args.new_prompt
@@ -134,9 +141,6 @@ export function createReplaceClipWithRegenerationTool(options: CreateReplaceClip
           `Clip ${args.clip_id} was not AI-generated (no generation.json for its media). Pass new_prompt explicitly to regenerate it from scratch.`,
         )
       }
-      const groundedPrompt = clipInfo.transcriptContext
-        ? buildTranscriptContextBlock(clipInfo.transcriptContext) + '\n\n' + basePrompt
-        : basePrompt
 
       // 3) Pick provider. If the user supplied one explicitly, honour it.
       //    Otherwise prefer the original provider when it's still available;
@@ -172,6 +176,53 @@ export function createReplaceClipWithRegenerationTool(options: CreateReplaceClip
           // fal `targetDurationSec` field. Use 30 fps as a safe estimator —
           // the provider quantizes to its supported buckets anyway.
           30
+
+      // M5.2 spend-confirmation gate. Runs BEFORE any timeline mutation, so a
+      // decline leaves the original clip untouched. Skipped automatically when
+      // the bridge has no confirmation channel (e.g. unit tests).
+      const modelForEstimate =
+        modelOverride ?? clipInfo.originalGeneration?.model ?? DEFAULT_REGEN_MODEL
+      if (options.bridge.requestConfirmation) {
+        const decision = await options.bridge.requestConfirmation(
+          {
+            title: 'Regenerate this clip?',
+            summary: basePrompt,
+            costEstimate: estimateVideoGenerationCost(modelForEstimate, targetDurationSec),
+            details: [
+              { label: 'Mode', value: regenMode },
+              { label: 'Model', value: modelForEstimate.replace(/^fal-ai\//, '') },
+              { label: 'Duration', value: `${Math.round(targetDurationSec)}s` },
+              { label: 'Provider', value: provider.id },
+            ],
+            editableFields: [
+              { key: 'prompt', label: 'Prompt', value: basePrompt, multiline: true },
+            ],
+            approveLabel: 'Regenerate',
+            rejectLabel: 'Skip',
+          },
+          options.abortSignal,
+        )
+        if (decision.decision === 'reject') {
+          const declined = {
+            status: 'declined' as const,
+            clipId: args.clip_id,
+            message: 'You declined to regenerate the clip. The original clip is unchanged.',
+          }
+          return { content: [{ type: 'text' as const, text: JSON.stringify(declined, null, 2) }] }
+        }
+        if (decision.decision === 'edit' && decision.edits) {
+          const editedPrompt = decision.edits.prompt
+          if (typeof editedPrompt === 'string' && editedPrompt.trim().length > 0) {
+            basePrompt = editedPrompt.trim()
+          }
+        }
+      }
+
+      // Transcript-grounded prompt — composed AFTER the gate so a prompt edit on
+      // the card flows into the grounded prompt sent to the model.
+      const groundedPrompt = clipInfo.transcriptContext
+        ? buildTranscriptContextBlock(clipInfo.transcriptContext) + '\n\n' + basePrompt
+        : basePrompt
 
       // 5) Replace the clip with a placeholder (mutating, snapshot captured).
       const placeholder = await options.bridge.invokeBrowserAction<ReplaceClipResult>(

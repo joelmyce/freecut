@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createGenerateBrollTool } from './generate-broll.ts'
-import type { BrowserActionBridge, ProvidersBundle } from '../providers/index.ts'
+import type {
+  BrowserActionBridge,
+  ConfirmationDecision,
+  ProvidersBundle,
+} from '../providers/index.ts'
+import type { ConfirmationCard } from '../bridge/protocol.ts'
 import type { VideoGenerationProvider } from '../providers/video/index.ts'
 
 function mockProvider(
@@ -58,6 +63,31 @@ function recordingBridge() {
     },
   }
   return { bridge, calls }
+}
+
+/** Wraps recordingBridge with a fixed-decision M5.2 spend gate; records cards. */
+function confirmingBridge(decision: ConfirmationDecision) {
+  const base = recordingBridge()
+  const cards: ConfirmationCard[] = []
+  const bridge: BrowserActionBridge = {
+    invokeBrowserAction: base.bridge.invokeBrowserAction,
+    requestConfirmation: async (card: ConfirmationCard) => {
+      cards.push(card)
+      return decision
+    },
+  }
+  return { bridge, calls: base.calls, cards }
+}
+
+function providersWith(provider: VideoGenerationProvider): ProvidersBundle {
+  return {
+    transcription: [],
+    videoGeneration: [provider],
+    analysis: [],
+    imageGeneration: [],
+    gifSearch: [],
+    tts: [],
+  }
 }
 
 async function callTool(toolDef: ReturnType<typeof createGenerateBrollTool>, args: unknown) {
@@ -274,6 +304,59 @@ describe('createGenerateBrollTool', () => {
     expect(generatedPrompt.indexOf('VIDEO CONTEXT')).toBeLessThan(
       generatedPrompt.indexOf('desk in a startup office'),
     )
+  })
+
+  it('M5.2 gate: approve shows a labeled cost card, then runs the full generation', async () => {
+    const provider = mockProvider(true)
+    const { bridge, calls, cards } = confirmingBridge({ decision: 'approve' })
+    const generateSpy = vi.spyOn(provider, 'generate')
+    const toolDef = createGenerateBrollTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    await callTool(toolDef, { prompt: 'city skyline', start_seconds: 12, end_seconds: 18 })
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.summary).toBe('city skyline')
+    expect(cards[0]?.costEstimate?.isEstimate).toBe(true)
+    expect(calls.map((c) => c.action)).toContain('insert-generation-placeholder')
+    expect(generateSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('M5.2 gate: reject returns status:"declined" and makes NO mutation (not even the read)', async () => {
+    const provider = mockProvider(true)
+    const { bridge, calls, cards } = confirmingBridge({ decision: 'reject' })
+    const generateSpy = vi.spyOn(provider, 'generate')
+    const toolDef = createGenerateBrollTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    const result = await callTool(toolDef, { prompt: 'x', start_seconds: 0, end_seconds: 5 })
+    const parsed = JSON.parse((result.content[0] as { text: string }).text)
+    expect(parsed.status).toBe('declined')
+    expect(cards).toHaveLength(1)
+    expect(generateSpy).not.toHaveBeenCalled()
+    // The gate runs before any bridge call — declining touches nothing.
+    expect(calls).toHaveLength(0)
+  })
+
+  it('M5.2 gate: edit applies the prompt override to the render + placeholder', async () => {
+    const provider = mockProvider(true)
+    const { bridge, calls } = confirmingBridge({
+      decision: 'edit',
+      edits: { prompt: 'neon alley at night' },
+    })
+    const generateSpy = vi.spyOn(provider, 'generate')
+    const toolDef = createGenerateBrollTool({
+      bridge,
+      providers: providersWith(provider),
+      abortSignal: new AbortController().signal,
+    })
+    await callTool(toolDef, { prompt: 'original prompt', start_seconds: 0, end_seconds: 5 })
+    expect(generateSpy.mock.calls[0]?.[0].prompt).toBe('neon alley at night')
+    const insert = calls.find((c) => c.action === 'insert-generation-placeholder')
+    expect((insert?.args as { prompt: string }).prompt).toBe('neon alley at night')
   })
 
   it('throws when no video provider is available', async () => {
