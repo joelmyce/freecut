@@ -3,6 +3,7 @@ import type {
   MgLayer,
   MotionGraphicContent,
   MotionGraphicSpec,
+  MotionGraphicStyle,
   MotionGraphicTemplate,
 } from './types.ts'
 
@@ -41,8 +42,12 @@ export const titleCardTemplate: MotionGraphicTemplate = {
   description:
     'Centered headline with an optional sub-headline and a growing accent divider; fades + scales in, holds, fades out.',
   requiredContent: ['title'],
-  build(content: MotionGraphicContent): MotionGraphicSpec {
-    const accent = content.accentColor?.trim() || DEFAULT_ACCENT
+  build(content: MotionGraphicContent, style?: MotionGraphicStyle): MotionGraphicSpec {
+    const accent = style?.accentColor?.trim() || DEFAULT_ACCENT
+    const titleColor = style?.titleColor?.trim() || TITLE_COLOR
+    const subtitleColor = style?.secondaryColor?.trim() || SUBTITLE_COLOR
+    const backgroundColor = style?.backgroundColor?.trim() || undefined
+    const fontFamily = style?.fontFamily?.trim() || undefined
     const title = content.title?.trim() || 'Title'
     const subtitle = content.subtitle?.trim() || undefined
 
@@ -50,8 +55,25 @@ export const titleCardTemplate: MotionGraphicTemplate = {
     const dividerY = subtitle ? 0.025 : 0.06
     const titleSizeFrac = 0.085
 
-    // BACK → FRONT. The divider sits behind the text so its grow reads cleanly.
-    const layers: MgLayer[] = [
+    // BACK → FRONT. Optional flat background (brand) sits behind everything so
+    // the card reads as an editorial slate; the divider sits behind the text.
+    const layers: MgLayer[] = []
+
+    if (backgroundColor) {
+      layers.push({
+        kind: 'shape',
+        name: 'Background',
+        shapeType: 'rectangle',
+        fillColor: backgroundColor,
+        xFrac: 0,
+        yFrac: 0,
+        widthFrac: 1,
+        heightFrac: 1,
+        animations: [fadeInOut()],
+      })
+    }
+
+    layers.push(
       {
         kind: 'shape',
         name: 'Title accent',
@@ -77,7 +99,8 @@ export const titleCardTemplate: MotionGraphicTemplate = {
         kind: 'text',
         name: 'Title',
         text: title,
-        color: TITLE_COLOR,
+        color: titleColor,
+        fontFamily,
         fontWeight: 'bold',
         textAlign: 'center',
         fontSizeFrac: titleSizeFrac,
@@ -97,14 +120,15 @@ export const titleCardTemplate: MotionGraphicTemplate = {
           fadeInOut(),
         ],
       },
-    ]
+    )
 
     if (subtitle) {
       layers.push({
         kind: 'text',
         name: 'Subtitle',
         text: subtitle,
-        color: SUBTITLE_COLOR,
+        color: subtitleColor,
+        fontFamily,
         fontWeight: 'normal',
         textAlign: 'center',
         fontSizeFrac: 0.032,

@@ -103,6 +103,29 @@ describe('resolveMotionGraphicItems', () => {
     expect(item.verticalAlign).toBe('middle')
   })
 
+  it('applies an authored (brand) fontFamily to the text item', () => {
+    const spec: Spec = {
+      templateId: 't',
+      defaultDurationSec: 4,
+      layers: [
+        {
+          kind: 'text',
+          name: 'Branded',
+          text: 'Hola',
+          color: '#0B1220',
+          fontFamily: 'Fraunces',
+          fontSizeFrac: 0.08,
+          xFrac: 0,
+          yFrac: 0,
+          widthFrac: 0.8,
+          heightFrac: 0.2,
+        },
+      ],
+    }
+    const [layer] = resolveMotionGraphicItems(spec, ENV)
+    expect((layer!.item as TextItem).fontFamily).toBe('Fraunces')
+  })
+
   it('scales x keyframes by width and rounds times to frames', () => {
     const [panel] = resolveMotionGraphicItems(SPEC, ENV)
     const xKfs = panel!.keyframes.filter((k) => k.property === 'x')

@@ -3,6 +3,7 @@ import type {
   MgLayer,
   MotionGraphicContent,
   MotionGraphicSpec,
+  MotionGraphicStyle,
   MotionGraphicTemplate,
 } from './types.ts'
 
@@ -56,8 +57,11 @@ export const lowerThirdTemplate: MotionGraphicTemplate = {
   description:
     'Name + optional role identifier card in the lower third over a panel; slides in from the left, holds, fades out.',
   requiredContent: ['name'],
-  build(content: MotionGraphicContent): MotionGraphicSpec {
-    const accent = content.accentColor?.trim() || DEFAULT_ACCENT
+  build(content: MotionGraphicContent, style?: MotionGraphicStyle): MotionGraphicSpec {
+    const accent = style?.accentColor?.trim() || DEFAULT_ACCENT
+    const panelColor = style?.surfaceColor?.trim() || PANEL_COLOR
+    const nameColor = style?.titleColor?.trim() || NAME_COLOR
+    const fontFamily = style?.fontFamily?.trim() || undefined
     const name = content.name?.trim() || 'Name'
     const role = content.role?.trim() || undefined
 
@@ -67,7 +71,7 @@ export const lowerThirdTemplate: MotionGraphicTemplate = {
         kind: 'shape',
         name: 'Lower third panel',
         shapeType: 'rectangle',
-        fillColor: PANEL_COLOR,
+        fillColor: panelColor,
         cornerRadiusFrac: 0.018,
         xFrac: PANEL_X,
         yFrac: PANEL_Y,
@@ -80,7 +84,8 @@ export const lowerThirdTemplate: MotionGraphicTemplate = {
         kind: 'text',
         name: 'Lower third name',
         text: name,
-        color: NAME_COLOR,
+        color: nameColor,
+        fontFamily,
         fontWeight: 'bold',
         textAlign: 'left',
         fontSizeFrac: 0.045,
@@ -98,6 +103,7 @@ export const lowerThirdTemplate: MotionGraphicTemplate = {
         name: 'Lower third role',
         text: role,
         color: accent,
+        fontFamily,
         fontWeight: 'medium',
         textAlign: 'left',
         fontSizeFrac: 0.026,

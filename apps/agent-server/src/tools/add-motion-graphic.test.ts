@@ -32,7 +32,14 @@ interface SentArgs {
   spec: {
     templateId: string
     defaultDurationSec: number
-    layers: Array<{ kind: string; name: string; text?: string; color?: string }>
+    layers: Array<{
+      kind: string
+      name: string
+      text?: string
+      color?: string
+      fillColor?: string
+      fontFamily?: string
+    }>
   }
   targetSeconds?: number
   startSeconds?: number
@@ -154,6 +161,47 @@ describe('createAddMotionGraphicTool', () => {
     await expect(
       callTool(makeTool(bridge), { template: 'stat_callout', content: { label: 'orphan' } }),
     ).rejects.toThrow(/requires value/)
+    expect(bridge.invokeBrowserAction).not.toHaveBeenCalled()
+  })
+
+  it('applies a named brand: fills colors + font and adds the flat background (title_card)', async () => {
+    const bridge = mockBridge()
+    await callTool(makeTool(bridge), {
+      template: 'title_card',
+      content: { title: 'Sistema', subtitle: 'no trucos' },
+      brand: 'abdias',
+    })
+    const [, sentArgs] = firstCall(bridge)
+    const bg = sentArgs.spec.layers.find((l) => l.name === 'Background')
+    expect(bg?.fillColor).toBe('#F5F0E8') // Paper background card (brand light)
+    const title = sentArgs.spec.layers.find((l) => l.text === 'Sistema')
+    expect(title?.color).toBe('#0B1220') // Ink
+    expect(title?.fontFamily).toBe('Fraunces')
+  })
+
+  it('lets an explicit accent_color override the brand, but still applies the brand font', async () => {
+    const bridge = mockBridge()
+    await callTool(makeTool(bridge), {
+      template: 'lower_third',
+      content: { name: 'Alex', role: 'CEO', accent_color: '#00FF00' },
+      brand: 'abdias',
+    })
+    const [, sentArgs] = firstCall(bridge)
+    const role = sentArgs.spec.layers.find((l) => l.text === 'CEO')
+    expect(role?.color).toBe('#00FF00') // explicit accent wins over brand signal-blue
+    const name = sentArgs.spec.layers.find((l) => l.text === 'Alex')
+    expect(name?.fontFamily).toBe('Fraunces') // brand still fills the font
+  })
+
+  it('throws on an unknown brand without touching the bridge', async () => {
+    const bridge = mockBridge()
+    await expect(
+      callTool(makeTool(bridge), {
+        template: 'title_card',
+        content: { title: 'X' },
+        brand: 'acme',
+      }),
+    ).rejects.toThrow(/Unknown brand/)
     expect(bridge.invokeBrowserAction).not.toHaveBeenCalled()
   })
 

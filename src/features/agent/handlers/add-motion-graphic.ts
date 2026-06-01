@@ -17,6 +17,8 @@ import type { ShapeItem, ShapeType, TextItem, TimelineItem } from '@/types/timel
 import type { EasingType } from '@/types/keyframe'
 import { usePlaybackStore } from '@/shared/state/playback'
 import { createLogger } from '@/shared/logging/logger'
+import { DEFAULT_TEXT_FONT_FAMILY } from '@/shared/typography/font-catalog'
+import { ensureFontsLoaded } from '@/shared/typography/font-loader'
 import { useProjectStore } from '../deps/projects-contract'
 import {
   insertMotionGraphic,
@@ -59,6 +61,7 @@ interface MgTextLayer extends MgLayerBase {
   fontWeight?: 'normal' | 'medium' | 'semibold' | 'bold'
   color: string
   textAlign?: 'left' | 'center' | 'right'
+  fontFamily?: string
 }
 interface MgShapeLayer extends MgLayerBase {
   kind: 'shape'
@@ -185,7 +188,7 @@ export function resolveMotionGraphicItems(
         label: layer.name,
         text: layer.text,
         fontSize: Math.max(1, Math.round(layer.fontSizeFrac * env.canvasHeight)),
-        fontFamily: 'Inter',
+        fontFamily: layer.fontFamily?.trim() || DEFAULT_TEXT_FONT_FAMILY,
         fontWeight: layer.fontWeight ?? 'normal',
         fontStyle: 'normal',
         color: layer.color,
@@ -243,6 +246,26 @@ export const addMotionGraphicHandler: BrowserActionHandler = async (rawArgs) => 
       : Math.max(0, usePlaybackStore.getState().currentFrame)
 
   const env: MotionGraphicEnv = { fps, canvasWidth, canvasHeight, fromFrame, durationInFrames }
+
+  // Best-effort: preload any non-default (brand) font so the text renders in the
+  // right face on first paint instead of flashing the fallback. Inter is the
+  // FreeCut default and already loaded — skip it.
+  const fontsToPreload = [
+    ...new Set(
+      spec.layers
+        .filter((layer): layer is MgTextLayer => layer.kind === 'text')
+        .map((layer) => layer.fontFamily?.trim())
+        .filter((font): font is string => !!font && font !== DEFAULT_TEXT_FONT_FAMILY),
+    ),
+  ]
+  if (fontsToPreload.length > 0) {
+    try {
+      await ensureFontsLoaded(fontsToPreload, [400, 500, 700])
+    } catch (err) {
+      log.warn(`font preload failed for ${fontsToPreload.join(', ')}: ${String(err)}`)
+    }
+  }
+
   const layers = resolveMotionGraphicItems(spec, env)
   const result = insertMotionGraphic(layers)
 

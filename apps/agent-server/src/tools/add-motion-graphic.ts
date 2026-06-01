@@ -2,7 +2,9 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { BrowserActionBridge } from '../providers/index.ts'
 import { getMotionGraphicTemplate } from '../templates/index.ts'
-import type { MotionGraphicContent } from '../templates/index.ts'
+import type { MotionGraphicContent, MotionGraphicStyle } from '../templates/index.ts'
+import { resolveBrandKnobsOrThrow } from '../brand/index.ts'
+import { brandKnobFields } from '../brand/tool-fields.ts'
 
 export interface CreateAddMotionGraphicToolOptions {
   bridge: BrowserActionBridge
@@ -89,6 +91,7 @@ const inputSchema = {
     .describe(
       'Where on the timeline (in seconds) the graphic starts. Defaults to the current playhead position. Use the start of the clip the speaker is introduced over when the user says "identify them here" / "when they start talking".',
     ),
+  ...brandKnobFields,
 }
 
 /**
@@ -111,7 +114,7 @@ const inputSchema = {
 export function createAddMotionGraphicTool(options: CreateAddMotionGraphicToolOptions) {
   return tool(
     'add_motion_graphic',
-    'Insert a native FreeCut motion graphic built from real text + shape + keyframe layers — it appears INSTANTLY, costs nothing (no AI generation, no rendering), and stays fully editable on the timeline. Three templates: "lower_third" (content.name required, role?/accent_color? optional) — a speaker name card in the lower third for "add a lower third / name tag / chyron / nameplate / identify the speaker"; "title_card" (content.title required, subtitle?/accent_color?) — a centered headline for "title card / intro title / section title / chapter title"; "stat_callout" (content.value required as a STRING like "10,000+"/"$2.5M"/"98%", label?/accent_color?) — a big hero number for "show a stat / big number / metric / counter" (it pops in with punch but does NOT tick through numbers). The whole graphic inserts as ONE undo entry (single Ctrl+Z removes it) on its own stacked tracks above the current content; it defaults to the playhead and a few seconds on screen (override with start_seconds / target_seconds). Prefer this over generate_image/generate_broll for any name card, title, or stat — it is the instant, editable, free path. NOT for stylized, animated-avatar, or talking-head graphics — only clean native text+shape cards.',
+    'Insert a native FreeCut motion graphic built from real text + shape + keyframe layers — it appears INSTANTLY, costs nothing (no AI generation, no rendering), and stays fully editable on the timeline. Three templates: "lower_third" (content.name required, role?/accent_color? optional) — a speaker name card in the lower third for "add a lower third / name tag / chyron / nameplate / identify the speaker"; "title_card" (content.title required, subtitle?/accent_color?) — a centered headline for "title card / intro title / section title / chapter title"; "stat_callout" (content.value required as a STRING like "10,000+"/"$2.5M"/"98%", label?/accent_color?) — a big hero number for "show a stat / big number / metric / counter" (it pops in with punch but does NOT tick through numbers). The whole graphic inserts as ONE undo entry (single Ctrl+Z removes it) on its own stacked tracks above the current content; it defaults to the playhead and a few seconds on screen (override with start_seconds / target_seconds). Prefer this over generate_image/generate_broll for any name card, title, or stat — it is the instant, editable, free path. NOT for stylized, animated-avatar, or talking-head graphics — only clean native text+shape cards. For BRANDING, pass brand:"abdias" (and optionally brand_mode) when the user names a saved brand — the card then uses the brand colors + font (title cards and stat callouts also get the brand\'s flat background); an explicit accent_color still overrides the brand accent.',
     inputSchema,
     async (args) => {
       const template = getMotionGraphicTemplate(args.template)
@@ -128,7 +131,6 @@ export function createAddMotionGraphicTool(options: CreateAddMotionGraphicToolOp
         subtitle: args.content.subtitle,
         value: args.content.value,
         label: args.content.label,
-        accentColor: args.content.accent_color,
       }
 
       const missing = template.requiredContent.filter((key) => {
@@ -143,7 +145,19 @@ export function createAddMotionGraphicTool(options: CreateAddMotionGraphicToolOp
         )
       }
 
-      const spec = template.build(content)
+      // Brand fills any styling knob the user didn't set explicitly; an explicit
+      // accent_color still wins (explicit > brand > template default).
+      const brandKnobs = resolveBrandKnobsOrThrow(args.brand, args.brand_mode)
+      const style: MotionGraphicStyle = {
+        accentColor: args.content.accent_color ?? brandKnobs?.accentColor,
+        titleColor: brandKnobs?.titleColor,
+        secondaryColor: brandKnobs?.secondaryColor,
+        backgroundColor: brandKnobs?.backgroundColor,
+        surfaceColor: brandKnobs?.surfaceColor,
+        fontFamily: brandKnobs?.fontFamily,
+      }
+
+      const spec = template.build(content, style)
 
       const result = await options.bridge.invokeBrowserAction<AddMotionGraphicActionResult>(
         'add-motion-graphic',

@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abdias.Marketing — Brand Style Guide v3.0</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            /* CORE PALETTE — Editorial Architect */
+            --ink: #0B1220;              /* Deep ink for dark-mode bg, near-black headlines on light */
+            --midnight: #1A2540;         /* Elevated dark surface */
+            --slate-warm: #3D4A63;       /* Warm slate for body text on light bg */
+            
+            /* BLUES — refined, less "SaaS dashboard" */
+            --signal-blue: #2B5CE6;      /* Primary — deeper, more confident than #3B82F6 */
+            --prussian: #0F2847;         /* Classical deep blue for editorial accents */
+            --ice-blue: #E8EFFB;         /* Soft pale tint for light surfaces */
+            
+            /* WARM NEUTRALS — this is the big upgrade */
+            --paper: #F5F0E8;            /* Cream editorial base (from reference) */
+            --paper-soft: #FAF7F2;       /* Lighter cream for cards */
+            --bone: #EDE6D8;             /* Warmer neutral for contrast blocks */
+            
+            /* ACCENT — replacing electric orange */
+            --terracotta: #B8553A;       /* Warm cultural accent, emphasis */
+            --clay: #D87B5A;              /* Lighter terracotta for hover/soft accents */
+            
+            /* TEXT */
+            --text-ink: #0B1220;         /* Primary text on light */
+            --text-slate: #3D4A63;       /* Body text on light */
+            --text-muted: #6B7790;       /* Captions, labels */
+            --text-paper: #F5F0E8;       /* Primary text on dark */
+            --text-paper-muted: #B8C0D0; /* Muted text on dark */
+            
+            --border-subtle: rgba(11, 18, 32, 0.08);
+            --border-mid: rgba(11, 18, 32, 0.16);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--paper);
+            color: var(--text-slate);
+            line-height: 1.65;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 80px 48px;
+        }
+
+        /* ═══ HEADER — editorial masthead feel ═══ */
+        header {
+            background: var(--ink);
+            color: var(--paper);
+            padding: 100px 48px 80px;
+            position: relative;
+            overflow: hidden;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(43, 92, 230, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(43, 92, 230, 0.06) 1px, transparent 1px);
+            background-size: 48px 48px;
+            z-index: 0;
+            mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+        }
+
+        header > * { position: relative; z-index: 1; }
+
+        .masthead-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1180px;
+            margin: 0 auto 60px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-paper-muted);
+        }
+
+        .masthead-meta .rule {
+            flex: 1;
+            height: 1px;
+            background: var(--text-paper-muted);
+            opacity: 0.3;
+            margin: 0 24px;
+        }
+
+        .logo-display {
+            text-align: center;
+            max-width: 1180px;
+            margin: 0 auto;
+        }
+
+        .logo-wordmark {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 88px;
+            color: var(--paper);
+            letter-spacing: -0.04em;
+            line-height: 1;
+            margin-bottom: 24px;
+        }
+
+        .logo-wordmark em {
+            font-style: italic;
+            font-weight: 500;
+        }
+
+        .logo-wordmark .dot {
+            color: var(--terracotta);
+            font-style: normal;
+        }
+
+        .tagline {
+            font-family: 'Fraunces', serif;
+            font-style: italic;
+            font-weight: 400;
+            font-size: 22px;
+            color: var(--text-paper-muted);
+            max-width: 540px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        /* ═══ TYPOGRAPHY ═══ */
+        h1.page-title {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 56px;
+            color: var(--text-ink);
+            letter-spacing: -0.02em;
+            line-height: 1.05;
+            margin-bottom: 24px;
+            max-width: 860px;
+        }
+
+        h1.page-title em {
+            font-style: italic;
+            font-weight: 500;
+            color: var(--terracotta);
+        }
+
+        .page-intro {
+            font-family: 'Fraunces', serif;
+            font-size: 20px;
+            color: var(--text-slate);
+            max-width: 720px;
+            margin-bottom: 72px;
+            line-height: 1.55;
+        }
+
+        h2.section-heading {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 38px;
+            color: var(--text-ink);
+            letter-spacing: -0.015em;
+            line-height: 1.1;
+            margin-top: 100px;
+            margin-bottom: 12px;
+        }
+
+        h2.section-heading em {
+            font-style: italic;
+            font-weight: 500;
+        }
+
+        .section-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--signal-blue);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-number::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-subtle);
+            max-width: 200px;
+        }
+
+        h3.subsection {
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-muted);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-top: 56px;
+            margin-bottom: 24px;
+        }
+
+        p { font-size: 17px; color: var(--text-slate); line-height: 1.65; }
+
+        .lead {
+            font-family: 'Fraunces', serif;
+            font-size: 20px;
+            color: var(--text-slate);
+            line-height: 1.55;
+            margin-bottom: 40px;
+            max-width: 760px;
+        }
+
+        section.section { margin-bottom: 40px; }
+
+        /* ═══ COLOR SYSTEM ═══ */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .color-card {
+            background: var(--paper-soft);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .color-swatch {
+            height: 140px;
+            width: 100%;
+            position: relative;
+        }
+
+        .color-swatch.light-border { border-bottom: 1px solid var(--border-subtle); }
+
+        .color-info { padding: 18px 20px 22px; }
+
+        .color-name {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: var(--text-ink);
+            margin-bottom: 4px;
+            letter-spacing: -0.01em;
+        }
+
+        .color-hex {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            letter-spacing: 0.02em;
+        }
+
+        .color-usage {
+            font-size: 13px;
+            color: var(--text-slate);
+            line-height: 1.55;
+        }
+
+        /* ═══ TYPOGRAPHY SPECIMENS ═══ */
+        .type-spec {
+            background: var(--paper-soft);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 40px 44px;
+            margin-bottom: 16px;
+        }
+
+        .type-spec-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .spec-display-serif {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 52px;
+            color: var(--text-ink);
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+        }
+
+        .spec-display-serif em {
+            font-style: italic;
+            font-weight: 500;
+            color: var(--terracotta);
+        }
+
+        .spec-body {
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            color: var(--text-slate);
+            line-height: 1.65;
+        }
+
+        .spec-mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 15px;
+            color: var(--signal-blue);
+            background: var(--ice-blue);
+            padding: 14px 20px;
+            border-radius: 8px;
+            display: inline-block;
+            letter-spacing: -0.01em;
+        }
+
+        .spec-caption {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        /* ═══ LOGO SHOWCASE ═══ */
+        .logo-variants {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .logo-variant-card {
+            background: var(--paper-soft);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 48px 32px 24px;
+            text-align: center;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .logo-variant-card.on-dark {
+            background: var(--ink);
+            border-color: transparent;
+        }
+
+        .variant-display {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .variant-wordmark {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 34px;
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+
+        .variant-wordmark em { font-style: italic; font-weight: 500; }
+        .variant-wordmark .dot { color: var(--terracotta); font-style: normal; }
+
+        .on-light .variant-wordmark { color: var(--text-ink); }
+        .on-dark .variant-wordmark { color: var(--paper); }
+
+        .variant-monogram {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-style: italic;
+            font-size: 96px;
+            line-height: 0.9;
+            letter-spacing: -0.04em;
+        }
+        .on-light .variant-monogram { color: var(--text-ink); }
+        .on-dark .variant-monogram { color: var(--paper); }
+        .variant-monogram .dot { color: var(--terracotta); font-style: normal; }
+
+        .variant-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 16px;
+        }
+        .on-dark .variant-label { color: var(--text-paper-muted); }
+
+        /* ═══ DUAL MODE SHOWCASE ═══ */
+        .dual-mode {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .mode-card {
+            border-radius: 16px;
+            padding: 48px 40px;
+            min-height: 320px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-card.light {
+            background: var(--paper);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .mode-card.dark {
+            background: var(--ink);
+            color: var(--paper);
+        }
+
+        .mode-card.dark::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(43, 92, 230, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(43, 92, 230, 0.08) 1px, transparent 1px);
+            background-size: 32px 32px;
+            mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+        }
+
+        .mode-card > * { position: relative; z-index: 1; }
+
+        .mode-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mode-card.light .mode-label { color: var(--signal-blue); }
+        .mode-card.dark .mode-label { color: #7FA1F0; }
+
+        .mode-headline {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 36px;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 16px;
+        }
+        .mode-headline em { font-style: italic; font-weight: 500; }
+        .mode-card.light .mode-headline { color: var(--text-ink); }
+        .mode-card.light .mode-headline em { color: var(--terracotta); }
+        .mode-card.dark .mode-headline { color: var(--paper); }
+        .mode-card.dark .mode-headline em { color: var(--clay); }
+
+        .mode-body {
+            font-size: 15px;
+            line-height: 1.65;
+            margin-bottom: 24px;
+            max-width: 380px;
+        }
+        .mode-card.light .mode-body { color: var(--text-slate); }
+        .mode-card.dark .mode-body { color: var(--text-paper-muted); }
+
+        /* ═══ INFO BOX (quieter, editorial) ═══ */
+        .info-box {
+            background: var(--paper-soft);
+            border: 1px solid var(--border-subtle);
+            border-left: 3px solid var(--signal-blue);
+            padding: 28px 32px;
+            border-radius: 4px;
+            margin: 24px 0;
+        }
+
+        .info-box p { font-size: 15px; line-height: 1.7; }
+        .info-box p + p { margin-top: 10px; }
+        .info-box strong { color: var(--text-ink); font-weight: 600; }
+
+        /* ═══ DO/DONT ═══ */
+        .do-dont {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .do, .dont {
+            background: var(--paper-soft);
+            border: 1px solid var(--border-subtle);
+            padding: 32px 36px;
+            border-radius: 12px;
+        }
+
+        .do { border-top: 3px solid #3E8B5C; }
+        .dont { border-top: 3px solid var(--terracotta); }
+
+        .do h4, .dont h4 {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 22px;
+            letter-spacing: -0.01em;
+            margin-bottom: 20px;
+        }
+
+        .do h4 { color: #3E8B5C; }
+        .dont h4 { color: var(--terracotta); }
+
+        .do ul, .dont ul { list-style: none; padding-left: 0; }
+
+        .do li, .dont li {
+            padding: 8px 0 8px 28px;
+            position: relative;
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-slate);
+        }
+
+        .do li::before {
+            content: "+";
+            position: absolute;
+            left: 0;
+            top: 8px;
+            color: #3E8B5C;
+            font-weight: 500;
+            font-size: 18px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .dont li::before {
+            content: "×";
+            position: absolute;
+            left: 0;
+            top: 7px;
+            color: var(--terracotta);
+            font-weight: 500;
+            font-size: 18px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ═══ QUICK REFERENCE ═══ */
+        .quick-ref {
+            background: var(--ink);
+            color: var(--text-paper);
+            padding: 48px 52px;
+            border-radius: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.9;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .quick-ref::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(43, 92, 230, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(43, 92, 230, 0.06) 1px, transparent 1px);
+            background-size: 32px 32px;
+            mask-image: radial-gradient(ellipse at top right, black 0%, transparent 60%);
+        }
+
+        .quick-ref pre { position: relative; z-index: 1; color: var(--text-paper); }
+
+        .qr-accent-blue { color: #7FA1F0; }
+        .qr-accent-terracotta { color: var(--clay); }
+        .qr-accent-paper { color: var(--paper); font-weight: 500; }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--ice-blue);
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: var(--signal-blue);
+            font-size: 14px;
+        }
+
+        /* ═══ CHANGELOG ═══ */
+        .changelog {
+            background: var(--bone);
+            border-radius: 12px;
+            padding: 40px 44px;
+            margin: 40px 0 0;
+        }
+
+        .changelog h3 {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 24px;
+            color: var(--text-ink);
+            margin-bottom: 20px;
+            letter-spacing: -0.01em;
+        }
+
+        .changelog-item {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 20px;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(11, 18, 32, 0.08);
+            align-items: baseline;
+        }
+
+        .changelog-item:last-child { border-bottom: none; }
+
+        .changelog-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--terracotta);
+            font-weight: 500;
+        }
+
+        .changelog-text { font-size: 15px; color: var(--text-slate); line-height: 1.55; }
+        .changelog-text strong { color: var(--text-ink); font-weight: 600; }
+
+        /* ═══ CARRUSEL MOCKUPS ═══ */
+        .carousel-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .slide-mock {
+            aspect-ratio: 4/5;
+            border-radius: 12px;
+            padding: 32px 28px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .slide-mock.cream { background: var(--paper); }
+        .slide-mock.cream-alt { background: var(--bone); }
+        .slide-mock.dark {
+            background: var(--ink);
+            border-color: transparent;
+        }
+
+        .slide-mock.dark::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(43, 92, 230, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(43, 92, 230, 0.08) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+        .slide-mock.dark > * { position: relative; z-index: 1; }
+
+        .slide-counter {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(11, 18, 32, 0.7);
+            color: var(--paper);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            letter-spacing: 0.05em;
+            z-index: 2;
+        }
+
+        .slide-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--signal-blue);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        .slide-mock.dark .slide-tag { color: #7FA1F0; }
+
+        .slide-headline {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            font-size: 28px;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            margin-bottom: 14px;
+        }
+
+        .slide-mock.cream .slide-headline,
+        .slide-mock.cream-alt .slide-headline { color: var(--text-ink); }
+        .slide-mock.dark .slide-headline { color: var(--paper); }
+
+        .slide-headline em { font-style: italic; font-weight: 500; }
+
+        .slide-mock.cream .slide-headline em,
+        .slide-mock.cream-alt .slide-headline em { color: var(--terracotta); }
+        .slide-mock.dark .slide-headline em { color: var(--clay); }
+
+        .slide-body {
+            font-size: 13px;
+            line-height: 1.55;
+            flex: 1;
+        }
+
+        .slide-mock.cream .slide-body,
+        .slide-mock.cream-alt .slide-body { color: var(--text-slate); }
+        .slide-mock.dark .slide-body { color: var(--text-paper-muted); }
+
+        .slide-footer {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slide-mock.cream .slide-footer,
+        .slide-mock.cream-alt .slide-footer { color: var(--text-muted); }
+        .slide-mock.dark .slide-footer { color: var(--text-paper-muted); }
+
+        .slide-footer .dot-logo { color: var(--terracotta); font-style: normal; }
+
+        /* ═══ MOBILE ═══ */
+        @media (max-width: 768px) {
+            .container { padding: 48px 24px; }
+            header { padding: 64px 24px 48px; }
+            .logo-wordmark { font-size: 56px; }
+            h1.page-title { font-size: 38px; }
+            h2.section-heading { font-size: 28px; }
+            .do-dont, .dual-mode { grid-template-columns: 1fr; }
+            .carousel-row { grid-template-columns: 1fr; }
+            .masthead-meta { flex-direction: column; gap: 8px; }
+            .masthead-meta .rule { display: none; }
+        }
+
+        /* ═══ FOOTER ═══ */
+        footer {
+            background: var(--ink);
+            color: var(--text-paper-muted);
+            padding: 72px 48px;
+            text-align: center;
+            margin-top: 120px;
+        }
+
+        footer p {
+            font-family: 'Fraunces', serif;
+            color: var(--paper);
+        }
+
+        footer .meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-top: 14px;
+            color: var(--text-paper-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="masthead-meta">
+            <span>Abdias.Marketing</span>
+            <div class="rule"></div>
+            <span>Brand System v3.0 · April 2026</span>
+        </div>
+
+        <div class="logo-display">
+            <div class="logo-wordmark">Abdias<span class="dot">.</span><em>Marketing</em></div>
+            <div class="tagline">La IA no te reemplaza. Te multiplica — si sabes lo que haces.</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <h1 class="page-title">The <em>Editorial Architect</em> — a system designed to be read, not just seen.</h1>
+        <p class="page-intro">Version 3.0 rebalances the brand. The architectural rigor stays — systems over hacks, structure underneath everything — but the voice is now editorial: warm paper, a classical serif, and a single cultural accent where cold corporate blue-and-orange used to live.</p>
+
+        <!-- ═══ CHANGELOG ═══ -->
+        <div class="changelog">
+            <h3>What changed from v2.0 → v3.0</h3>
+            <div class="changelog-item">
+                <span class="changelog-tag">Added</span>
+                <span class="changelog-text"><strong>Fraunces</strong> as display serif — brings editorial weight, cultural warmth, and opens up italic expression for emphasis words.</span>
+            </div>
+            <div class="changelog-item">
+                <span class="changelog-tag">Added</span>
+                <span class="changelog-text"><strong>Paper / Bone</strong> warm cream backgrounds as the default for editorial contexts (Instagram carousels, long-form, educational content). Dark mode becomes one of two official modes, not the only mode.</span>
+            </div>
+            <div class="changelog-item">
+                <span class="changelog-tag">Replaced</span>
+                <span class="changelog-text"><strong>Electric Orange (#F97316) → Terracotta (#B8553A)</strong>. Same function (accent, emphasis, the dot in the logo), but now carries cultural warmth instead of corporate-tech signaling.</span>
+            </div>
+            <div class="changelog-item">
+                <span class="changelog-tag">Refined</span>
+                <span class="changelog-text"><strong>Blueprint Blue (#3B82F6) → Signal Blue (#2B5CE6)</strong>. A deeper, more confident blue that reads as considered rather than generic SaaS.</span>
+            </div>
+            <div class="changelog-item">
+                <span class="changelog-tag">Replaced</span>
+                <span class="changelog-text"><strong>Space Grotesk → Inter</strong> for UI and labels. Geometric modern sans stays, but Inter is more neutral — it lets Fraunces carry the brand personality.</span>
+            </div>
+            <div class="changelog-item">
+                <span class="changelog-tag">Kept</span>
+                <span class="changelog-text">The architectural DNA: grid overlays (now masked for subtlety), monospace for technical/data, the dot-as-accent in the logo. Your IT background is real — this is not the brand to abandon structure.</span>
+            </div>
+        </div>
+
+        <!-- ═══ BRAND PRINCIPLES ═══ -->
+        <section class="section">
+            <div class="section-number">01 / Foundation</div>
+            <h2 class="section-heading">Brand <em>principles</em></h2>
+            <p class="lead">Three tensions held in balance. Every design decision should honor all three — if a piece leans too far in one direction, it's off-brand.</p>
+
+            <div class="info-box">
+                <p><strong>Structured, but human.</strong> There is always a system underneath — but the person delivering it is warm, bilingual, and reads books. The design should signal both.</p>
+                <p><strong>Technical, but editorial.</strong> Monospace and grids exist because the work is real. Serif headlines and cream paper exist because the audience isn't engineers — they're entrepreneurs who deserve a brand that respects their intelligence without performing tech-bro signaling.</p>
+                <p><strong>AI-native, but human-guided.</strong> The tagline is the product. The visual system must reinforce both halves equally.</p>
+            </div>
+        </section>
+
+        <!-- ═══ COLOR PALETTE ═══ -->
+        <section class="section">
+            <div class="section-number">02 / Color</div>
+            <h2 class="section-heading">The <em>palette</em></h2>
+            <p class="lead">Two neutrals do the heavy lifting: deep ink for dark mode, warm paper for light. Signal blue is the structural brand color. Terracotta is the single cultural accent — used sparingly and with intention.</p>
+
+            <h3 class="subsection">Foundation · Two modes, one brand</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #0B1220;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Deep Ink</div>
+                        <div class="color-hex">#0B1220</div>
+                        <div class="color-usage">Dark mode base. Near-black with a blue undertone — warmer than pure black, more serious than navy.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch light-border" style="background-color: #F5F0E8;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Paper</div>
+                        <div class="color-hex">#F5F0E8</div>
+                        <div class="color-usage">Light mode base. Editorial cream — warmer than off-white, reads as considered and literary.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch light-border" style="background-color: #FAF7F2;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Paper Soft</div>
+                        <div class="color-hex">#FAF7F2</div>
+                        <div class="color-usage">Elevated cards and inner surfaces on light mode. Never pure white.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch light-border" style="background-color: #EDE6D8;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Bone</div>
+                        <div class="color-hex">#EDE6D8</div>
+                        <div class="color-usage">Warmer neutral for contrast blocks, callouts, and changelog panels.</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="subsection">Structural · The blues</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #2B5CE6;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Signal Blue</div>
+                        <div class="color-hex">#2B5CE6</div>
+                        <div class="color-usage">Primary brand color. Links, structural accents, section numbers, monospace code tokens.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #0F2847;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Prussian</div>
+                        <div class="color-hex">#0F2847</div>
+                        <div class="color-usage">Classical deep blue. Editorial pull quotes, emphasis on light backgrounds.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch light-border" style="background-color: #E8EFFB;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Ice Blue</div>
+                        <div class="color-hex">#E8EFFB</div>
+                        <div class="color-usage">Soft background tint for code blocks, tags, and quiet blue surfaces.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #1A2540;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Midnight</div>
+                        <div class="color-hex">#1A2540</div>
+                        <div class="color-usage">Elevated surfaces on dark mode — cards, quiet panels, inner modals.</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="subsection">Accent · The dot</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #B8553A;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Terracotta</div>
+                        <div class="color-hex">#B8553A</div>
+                        <div class="color-usage">The brand accent. Only appears in: the logo's dot, emphasis words in italic, danger/delete states. Never as a fill or mass.</div>
+                    </div>
+                </div>
+
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #D87B5A;"></div>
+                    <div class="color-info">
+                        <div class="color-name">Clay</div>
+                        <div class="color-hex">#D87B5A</div>
+                        <div class="color-usage">Lighter variant — used on dark backgrounds where terracotta loses contrast. Hover states.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 40px;">
+                <p><strong>The 80/15/5 rule.</strong> 80% of any piece is Paper or Deep Ink. 15% is type in ink/paper/slate. 5% is Signal Blue for structure and Terracotta for emphasis. If you're above 5% on the accents, you're shouting.</p>
+            </div>
+        </section>
+
+        <!-- ═══ TYPOGRAPHY ═══ -->
+        <section class="section">
+            <div class="section-number">03 / Typography</div>
+            <h2 class="section-heading">A <em>serif-led</em> system</h2>
+            <p class="lead">Fraunces carries the brand voice. Inter does the quiet work of UI and body. JetBrains Mono keeps the technical DNA without making everything look like a terminal.</p>
+
+            <div class="type-spec">
+                <div class="type-spec-label">
+                    <span>Fraunces · Display Serif</span>
+                    <span>Weight 500 · Regular + Italic</span>
+                </div>
+                <div class="spec-display-serif">Marketing con <em>sistema</em>, no trucos aislados.</div>
+            </div>
+
+            <div class="type-spec">
+                <div class="type-spec-label">
+                    <span>Fraunces · Italic 400</span>
+                    <span>Tagline / Pull quotes</span>
+                </div>
+                <div style="font-family: 'Fraunces', serif; font-style: italic; font-size: 28px; color: var(--text-slate); line-height: 1.4;">La IA no te reemplaza. Te multiplica — si sabes lo que haces.</div>
+            </div>
+
+            <div class="type-spec">
+                <div class="type-spec-label">
+                    <span>Inter · Body</span>
+                    <span>Weight 400 · 16–18px</span>
+                </div>
+                <div class="spec-body">Marketing digital en español como nadie te lo enseña. El ciclo completo: desde la investigación de mercado hasta la optimización de campañas — todo potenciado con IA, pero guiado por un humano que sabe lo que hace.</div>
+            </div>
+
+            <div class="type-spec">
+                <div class="type-spec-label">
+                    <span>Inter · UI Label</span>
+                    <span>Weight 600 · 12–14px · Uppercase · Tracked</span>
+                </div>
+                <div class="spec-caption">Research → Strategy → Execution</div>
+            </div>
+
+            <div class="type-spec">
+                <div class="type-spec-label">
+                    <span>JetBrains Mono · Technical</span>
+                    <span>Weight 500 · 13–15px</span>
+                </div>
+                <div class="spec-mono">const marketingCycle = ['Research', 'Strategy', 'Assets', 'Distribution'];</div>
+            </div>
+
+            <div class="info-box">
+                <p><strong>Rule of emphasis:</strong> In any headline, italicize <em>one</em> word. That word is almost always the concept you want to own. "La IA no te <em>reemplaza</em>." "Marketing con <em>sistema</em>." This is the single most powerful move in the system — it replaces the need for bold, color changes, or size jumps.</p>
+                <p><strong>Fraunces</strong> is the flagship — get it from <a href="https://fonts.google.com/specimen/Fraunces" style="color: var(--signal-blue);">Google Fonts</a>. <strong>Inter</strong> is the workhorse — <a href="https://rsms.me/inter/" style="color: var(--signal-blue);">rsms.me/inter</a>. <strong>JetBrains Mono</strong> replaces Geist Mono — it's free-license and ships on more systems.</p>
+            </div>
+        </section>
+
+        <!-- ═══ DUAL MODE ═══ -->
+        <section class="section">
+            <div class="section-number">04 / Modes</div>
+            <h2 class="section-heading">Two <em>official</em> modes</h2>
+            <p class="lead">Not "dark mode and a light mode afterthought." Two first-class presentations of the brand, each with a distinct use case.</p>
+
+            <div class="dual-mode">
+                <div class="mode-card light">
+                    <div class="mode-label">◐ Light — "Paper"</div>
+                    <div class="mode-headline">Para el <em>contenido</em> editorial</div>
+                    <div class="mode-body">Instagram carousels, LinkedIn long-form, sales pages, newsletters, anything that needs to feel warm, considered, and readable in a lifestyle feed.</div>
+                    <div class="spec-caption" style="color: var(--signal-blue);">Default mode for creator content</div>
+                </div>
+
+                <div class="mode-card dark">
+                    <div class="mode-label">◑ Dark — "Ink"</div>
+                    <div class="mode-headline">Para el <em>producto</em> técnico</div>
+                    <div class="mode-body">Landing pages, the website, dashboards, documentation, anything that needs to signal technical depth and product-grade thinking.</div>
+                    <div class="spec-caption" style="color: #7FA1F0;">Default mode for product surfaces</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ LOGO ═══ -->
+        <section class="section">
+            <div class="section-number">05 / Logo</div>
+            <h2 class="section-heading">The <em>wordmark</em></h2>
+            <p class="lead">The brand name set in Fraunces italic, with a terracotta dot as the pivot. No brackets, no blueprint crop marks, no bespoke "A" monogram. The wordmark is the logo. The italic is the personality. The dot is the signature.</p>
+
+            <div class="logo-variants">
+                <div class="logo-variant-card on-light">
+                    <div class="variant-display">
+                        <div class="variant-wordmark">Abdias<span class="dot">.</span><em>Marketing</em></div>
+                    </div>
+                    <div class="variant-label">Primary · On paper</div>
+                </div>
+
+                <div class="logo-variant-card on-dark">
+                    <div class="variant-display">
+                        <div class="variant-wordmark">Abdias<span class="dot">.</span><em>Marketing</em></div>
+                    </div>
+                    <div class="variant-label">Primary · On ink</div>
+                </div>
+
+                <div class="logo-variant-card on-light">
+                    <div class="variant-display">
+                        <div class="variant-monogram">A<span class="dot">.</span></div>
+                    </div>
+                    <div class="variant-label">Monogram · Avatar / favicon</div>
+                </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 32px;">
+                <p><strong>Logo rules:</strong> The dot is always Terracotta (#B8553A). "Abdias" is always roman. "Marketing" is always italic. Clear space around the mark equals the x-height of the lowercase letters. Minimum size: 100px wide for legibility of the italic.</p>
+                <p><strong>Why no bespoke mark?</strong> Because your brand is an editorial voice — the typography <em>is</em> the identity. A monogram in a box would fight the serif. Trust the wordmark to do the work.</p>
+            </div>
+        </section>
+
+        <!-- ═══ CARRUSELES ═══ -->
+        <section class="section">
+            <div class="section-number">06 / In use</div>
+            <h2 class="section-heading">Instagram <em>carousels</em></h2>
+            <p class="lead">The light mode finally earns its keep. Three sample slides showing how the system flows across a carousel — warm paper default, one ink slide for emphasis or section breaks, terracotta accents for italic emphasis words.</p>
+
+            <div class="carousel-row">
+                <div class="slide-mock cream">
+                    <span class="slide-counter">1 / 7</span>
+                    <div class="slide-tag">Sistema · 01</div>
+                    <div class="slide-headline">La IA no te <em>reemplaza</em>. Te multiplica.</div>
+                    <div class="slide-body">Tres razones por las que los que "ya saben de IA" siguen quedándose atrás — y qué hacer en su lugar.</div>
+                    <div class="slide-footer">
+                        <span>abdias<span class="dot-logo">.</span>marketing</span>
+                        <span>→</span>
+                    </div>
+                </div>
+
+                <div class="slide-mock dark">
+                    <span class="slide-counter">2 / 7</span>
+                    <div class="slide-tag">El error #1</div>
+                    <div class="slide-headline">Creer que la IA es una <em>herramienta</em> y no un equipo.</div>
+                    <div class="slide-body">Una herramienta ejecuta una tarea. Un equipo resuelve un problema. Esa diferencia es la que separa a los que usan IA de los que la multiplican.</div>
+                    <div class="slide-footer">
+                        <span>abdias<span class="dot-logo">.</span>marketing</span>
+                        <span>→</span>
+                    </div>
+                </div>
+
+                <div class="slide-mock cream-alt">
+                    <span class="slide-counter">7 / 7</span>
+                    <div class="slide-tag">Tu siguiente paso</div>
+                    <div class="slide-headline">Construye el <em>sistema</em>, no otro truco más.</div>
+                    <div class="slide-body">Guárdate este carrusel. Comparte con el emprendedor que sigue "probando herramientas" sin estrategia. Sígueme para la serie completa.</div>
+                    <div class="slide-footer">
+                        <span>abdias<span class="dot-logo">.</span>marketing</span>
+                        <span>♡ ◎ ▷</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-box" style="margin-top: 32px;">
+                <p><strong>The carousel rhythm:</strong> Open on Paper (warm, inviting). Use Bone for contrast slides mid-deck. Drop to Ink <em>once or twice</em> for emphasis slides — this is where the system's dual-mode nature earns its keep. Close on Paper with the CTA. Counter always top-right. Dot-logo always in the footer.</p>
+            </div>
+        </section>
+
+        <!-- ═══ DO / DONT ═══ -->
+        <section class="section">
+            <div class="section-number">07 / Guardrails</div>
+            <h2 class="section-heading">Do's &amp; <em>don'ts</em></h2>
+
+            <div class="do-dont">
+                <div class="do">
+                    <h4>Do</h4>
+                    <ul>
+                        <li>Lead with Fraunces for headlines — one italic emphasis word per headline</li>
+                        <li>Default to Paper backgrounds for editorial content</li>
+                        <li>Default to Ink backgrounds for product and technical surfaces</li>
+                        <li>Use Terracotta like salt — sparingly, with intention</li>
+                        <li>Keep monospace for actual technical content (code, data, labels, timestamps)</li>
+                        <li>Maintain wide margins and generous leading</li>
+                        <li>Let one slide per carousel break the rhythm (the "ink" slide)</li>
+                        <li>Sign off with the dot-logo in footers and captions</li>
+                    </ul>
+                </div>
+
+                <div class="dont">
+                    <h4>Don't</h4>
+                    <ul>
+                        <li>Don't use Fraunces for UI labels or small body text — it loses its character under 16px</li>
+                        <li>Don't use Terracotta as a fill color or background mass</li>
+                        <li>Don't use pure black (#000) or pure white (#FFF) anywhere in the system</li>
+                        <li>Don't add bright neon, saturated gradients, or glow effects</li>
+                        <li>Don't italicize more than one word per headline</li>
+                        <li>Don't default to Dark mode for Instagram — it disappears in the feed</li>
+                        <li>Don't use emoji as primary visual language — ever</li>
+                        <li>Don't mix the Editorial Architect system with "guru" aesthetics (cash, cars, hype)</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══ QUICK REF ═══ -->
+        <section class="section">
+            <div class="section-number">08 / Reference</div>
+            <h2 class="section-heading">Quick <em>reference</em></h2>
+
+            <div class="quick-ref">
+<pre>
+<span class="qr-accent-paper">ABDIAS.MARKETING — THE EDITORIAL ARCHITECT · v3.0</span>
+════════════════════════════════════════════════════════
+
+<span class="qr-accent-blue">PALETTE</span>
+  Paper        <span class="qr-accent-paper">#F5F0E8</span>   Light mode base · editorial cream
+  Ink          <span class="qr-accent-paper">#0B1220</span>   Dark mode base · deep near-black
+  Signal Blue  <span class="qr-accent-paper">#2B5CE6</span>   Primary structural color
+  Terracotta   <span class="qr-accent-terracotta">#B8553A</span>   The dot · emphasis · accent only
+
+<span class="qr-accent-blue">TYPOGRAPHY</span>
+  Display      <span class="qr-accent-paper">Fraunces</span> 500 · Regular + Italic
+  Body         <span class="qr-accent-paper">Inter</span> 400 / 500 / 600
+  Technical    <span class="qr-accent-paper">JetBrains Mono</span> 500
+
+<span class="qr-accent-blue">VOICE</span>
+  Editorial Architect. Warm paper, deep ink, one
+  italic word per headline. Systems over hacks.
+
+<span class="qr-accent-blue">TAGLINE</span>
+  <span class="qr-accent-paper">La IA no te reemplaza. Te multiplica —</span>
+  <span class="qr-accent-paper">si sabes lo que haces.</span>
+
+<span class="qr-accent-blue">CHANNELS</span>
+  YouTube      Abdias.Marketing
+  IG / TikTok  @abdias.marketing
+  Domain       abdias.marketing
+════════════════════════════════════════════════════════
+</pre>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>Abdias<span style="color: var(--clay);">.</span><em style="font-style: italic;">Marketing</em> — Brand System</p>
+        <div class="meta">Version 3.0 · April 2026 · The Editorial Architect</div>
+    </footer>
+</body>
+
+</html>

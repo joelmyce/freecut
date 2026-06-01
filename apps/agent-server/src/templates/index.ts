@@ -22,6 +22,7 @@ export type {
   MgTextLayer,
   MotionGraphicContent,
   MotionGraphicSpec,
+  MotionGraphicStyle,
   MotionGraphicTemplate,
 } from './types.ts'
 

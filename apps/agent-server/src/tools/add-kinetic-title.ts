@@ -2,6 +2,8 @@ import { tool } from '@anthropic-ai/claude-agent-sdk'
 import { z } from 'zod'
 import type { BrowserActionBridge } from '../providers/index.ts'
 import { renderKineticTitle, type RenderCompositionResult } from '../hyperframes/index.ts'
+import { resolveBrandKnobsOrThrow } from '../brand/index.ts'
+import { brandKnobFields } from '../brand/tool-fields.ts'
 
 /** Injectable renderer so tests run without spawning Chrome. */
 export type KineticTitleRenderer = (args: {
@@ -84,6 +86,7 @@ const inputSchema = {
     .positive()
     .optional()
     .describe('How long the title stays on screen, in seconds. Defaults to 4.'),
+  ...brandKnobFields,
 }
 
 /**
@@ -105,12 +108,21 @@ export function createAddKineticTitleTool(options: CreateAddKineticTitleToolOpti
 
   return tool(
     'add_kinetic_title',
-    'Render a STYLIZED, ANIMATED title card locally (free, no API) via the HyperFrames engine and drop it on the timeline. Use when the user wants a fancy/animated/"motion-designed" title with effects beyond plain text — "animated title", "kinetic title", "cinematic intro title", "stylized title card". The words stagger in with a blur-clear, an accent underline wipes open, an optional subtitle fades up. This is a RENDERED clip (takes ~10-30s; a placeholder shows while it renders, then the finished clip swaps in — one Ctrl+Z removes it). For a SIMPLE, instantly-editable title you will tweak by hand, prefer add_motion_graphic template:"title_card" instead — this tool trades live editability for richer motion. Provide title (required); optionally subtitle, start_seconds, and target_seconds (default 4s). For BRANDING, pass any of: accent_color, title_color, background_color, subtitle_color (CSS colors), and font_family (a Google Fonts name like "Montserrat" / "Poppins" / "Playfair Display"). Use these whenever the user names brand colors or a font, or asks to "match my brand".',
+    'Render a STYLIZED, ANIMATED title card locally (free, no API) via the HyperFrames engine and drop it on the timeline. Use when the user wants a fancy/animated/"motion-designed" title with effects beyond plain text — "animated title", "kinetic title", "cinematic intro title", "stylized title card". The words stagger in with a blur-clear, an accent underline wipes open, an optional subtitle fades up. This is a RENDERED clip (takes ~10-30s; a placeholder shows while it renders, then the finished clip swaps in — one Ctrl+Z removes it). For a SIMPLE, instantly-editable title you will tweak by hand, prefer add_motion_graphic template:"title_card" instead — this tool trades live editability for richer motion. Provide title (required); optionally subtitle, start_seconds, and target_seconds (default 4s). For BRANDING, the easiest path is brand:"abdias" (+ optional brand_mode) when the user names a saved brand — it fills the brand colors + font automatically. Otherwise pass any of accent_color, title_color, background_color, subtitle_color (CSS colors) and font_family (a Google Fonts name like "Montserrat" / "Poppins" / "Playfair Display") to brand it by hand; explicit colors/font override a brand.',
     inputSchema,
     async (args) => {
       const durationSec = args.target_seconds ?? DEFAULT_DURATION_SEC
       const endSeconds = args.start_seconds + durationSec
       const promptLabel = `Kinetic title: "${args.title}"`
+
+      // Brand fills any styling knob the user didn't set explicitly
+      // (explicit per-call value > brand token > template default).
+      const brandKnobs = resolveBrandKnobsOrThrow(args.brand, args.brand_mode)
+      const accentColor = args.accent_color ?? brandKnobs?.accentColor
+      const titleColor = args.title_color ?? brandKnobs?.titleColor
+      const backgroundColor = args.background_color ?? brandKnobs?.backgroundColor
+      const subtitleColor = args.subtitle_color ?? brandKnobs?.secondaryColor
+      const fontFamily = args.font_family ?? brandKnobs?.fontFamily
 
       // 1) Placeholder at the requested window.
       const placeholder = await options.bridge.invokeBrowserAction<InsertPlaceholderResult>(
@@ -130,11 +142,11 @@ export function createAddKineticTitleTool(options: CreateAddKineticTitleToolOpti
         const rendered = await render({
           title: args.title,
           subtitle: args.subtitle,
-          accentColor: args.accent_color,
-          backgroundColor: args.background_color,
-          titleColor: args.title_color,
-          subtitleColor: args.subtitle_color,
-          fontFamily: args.font_family,
+          accentColor,
+          backgroundColor,
+          titleColor,
+          subtitleColor,
+          fontFamily,
           durationSec,
           signal: options.abortSignal,
         })
@@ -151,11 +163,13 @@ export function createAddKineticTitleTool(options: CreateAddKineticTitleToolOpti
             prompt: promptLabel,
             providerInputs: {
               template: 'kinetic_title',
-              accentColor: args.accent_color,
-              backgroundColor: args.background_color,
-              titleColor: args.title_color,
-              subtitleColor: args.subtitle_color,
-              fontFamily: args.font_family,
+              brand: brandKnobs?.brandId,
+              brandMode: brandKnobs?.mode,
+              accentColor,
+              backgroundColor,
+              titleColor,
+              subtitleColor,
+              fontFamily,
               durationSec,
             },
           },

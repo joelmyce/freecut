@@ -86,6 +86,12 @@ export interface MgTextLayer extends MgLayerBase {
   fontWeight?: 'normal' | 'medium' | 'semibold' | 'bold'
   color: string
   textAlign?: 'left' | 'center' | 'right'
+  /**
+   * Optional font family (Google-Fonts name, e.g. "Fraunces"). The browser
+   * materializer applies it to the TextItem and best-effort preloads it; when
+   * omitted it falls back to the FreeCut default ("Inter").
+   */
+  fontFamily?: string
 }
 
 export interface MgShapeLayer extends MgLayerBase {
@@ -124,8 +130,32 @@ export interface MotionGraphicContent {
   value?: string
   /** stat_callout: caption under the value. */
   label?: string
-  /** Optional accent color shared across templates. */
+}
+
+/**
+ * Optional styling overrides resolved by the TOOL (from an explicit accent color
+ * and/or a named brand profile) and handed to `build()`. Each field overrides a
+ * template's hardcoded constant; when a field is omitted the template keeps its
+ * generic default, so the non-branded path is unchanged. Precedence is applied
+ * before this object reaches the template (explicit per-call > brand > default).
+ */
+export interface MotionGraphicStyle {
+  /** Headline / name / value primary-text color. */
+  titleColor?: string
+  /** Subtitle / role / label secondary-text color. */
+  secondaryColor?: string
+  /** Structural accent (title-card divider, lower-third role, stat label). */
   accentColor?: string
+  /**
+   * Full-frame flat background fill. When set, the title_card / stat_callout
+   * templates add a backmost background layer so they read as an editorial card
+   * (no gradient). lower_third ignores it (it has its own panel).
+   */
+  backgroundColor?: string
+  /** Elevated surface fill — the lower-third panel. */
+  surfaceColor?: string
+  /** Display font family (Google-Fonts name) applied to every text layer. */
+  fontFamily?: string
 }
 
 export interface MotionGraphicTemplate {
@@ -134,5 +164,5 @@ export interface MotionGraphicTemplate {
   description: string
   /** Required content keys; the tool validates these are present + non-empty. */
   requiredContent: Array<keyof MotionGraphicContent>
-  build(content: MotionGraphicContent): MotionGraphicSpec
+  build(content: MotionGraphicContent, style?: MotionGraphicStyle): MotionGraphicSpec
 }

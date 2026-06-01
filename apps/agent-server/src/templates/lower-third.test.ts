@@ -41,13 +41,32 @@ describe('lower_third template', () => {
   })
 
   it('themes the role line with a custom accent color', () => {
-    const spec = lowerThirdTemplate.build({
-      name: 'Alex Rivera',
-      role: '@alex',
-      accentColor: '#22D3EE',
-    })
+    const spec = lowerThirdTemplate.build(
+      { name: 'Alex Rivera', role: '@alex' },
+      { accentColor: '#22D3EE' },
+    )
     const role = spec.layers[2] as MgTextLayer
     expect(role.color).toBe('#22D3EE')
+  })
+
+  it('applies brand style: panel surface, name color, accent role, and font', () => {
+    const spec = lowerThirdTemplate.build(
+      { name: 'Alex Rivera', role: 'Fundador' },
+      {
+        surfaceColor: '#FAF7F2',
+        titleColor: '#0B1220',
+        accentColor: '#2B5CE6',
+        fontFamily: 'Fraunces',
+      },
+    )
+    const panel = spec.layers[0] as MgShapeLayer
+    expect(panel.fillColor).toBe('#FAF7F2')
+    const name = spec.layers[1] as MgTextLayer
+    expect(name.color).toBe('#0B1220')
+    expect(name.fontFamily).toBe('Fraunces')
+    const role = spec.layers[2] as MgTextLayer
+    expect(role.color).toBe('#2B5CE6')
+    expect(role.fontFamily).toBe('Fraunces')
   })
 
   it('grows the panel taller when a role line is present', () => {

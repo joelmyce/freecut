@@ -28,9 +28,42 @@ describe('title_card template', () => {
   })
 
   it('themes the divider with the accent color', () => {
-    const divider = titleCardTemplate.build({ title: 'X', accentColor: '#22D3EE' })
+    const divider = titleCardTemplate.build({ title: 'X' }, { accentColor: '#22D3EE' })
       .layers[0] as MgShapeLayer
     expect(divider.fillColor).toBe('#22D3EE')
+  })
+
+  it('applies brand style: flat background layer, title/subtitle colors, and font', () => {
+    const spec = titleCardTemplate.build(
+      { title: 'Hola', subtitle: 'un vistazo' },
+      {
+        titleColor: '#0B1220',
+        secondaryColor: '#3D4A63',
+        accentColor: '#2B5CE6',
+        backgroundColor: '#F5F0E8',
+        fontFamily: 'Fraunces',
+      },
+    )
+    // Backmost layer is now a full-frame background card.
+    const bg = spec.layers[0] as MgShapeLayer
+    expect(bg.kind).toBe('shape')
+    expect(bg.name).toBe('Background')
+    expect(bg.fillColor).toBe('#F5F0E8')
+    expect(bg.widthFrac).toBe(1)
+    expect(bg.heightFrac).toBe(1)
+
+    const title = spec.layers.find((l) => l.name === 'Title') as MgTextLayer
+    expect(title.color).toBe('#0B1220')
+    expect(title.fontFamily).toBe('Fraunces')
+    const subtitle = spec.layers.find((l) => l.name === 'Subtitle') as MgTextLayer
+    expect(subtitle.color).toBe('#3D4A63')
+    expect(subtitle.fontFamily).toBe('Fraunces')
+  })
+
+  it('omits the background layer when no backgroundColor is given (transparent overlay)', () => {
+    const spec = titleCardTemplate.build({ title: 'X' }, { fontFamily: 'Fraunces' })
+    expect(spec.layers.some((l) => l.name === 'Background')).toBe(false)
+    expect((spec.layers.find((l) => l.name === 'Title') as MgTextLayer).fontFamily).toBe('Fraunces')
   })
 
   it('grows the divider from zero width and scales the title in', () => {

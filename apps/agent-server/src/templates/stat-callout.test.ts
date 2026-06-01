@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { statCalloutTemplate } from './stat-callout.ts'
 import { getMotionGraphicTemplate, MOTION_GRAPHIC_TEMPLATE_IDS } from './index.ts'
-import type { MgTextLayer } from './types.ts'
+import type { MgShapeLayer, MgTextLayer } from './types.ts'
 
 describe('stat_callout template', () => {
   it('is registered and requires a value', () => {
@@ -28,15 +28,35 @@ describe('stat_callout template', () => {
   })
 
   it('adds an accent-colored label layer when given', () => {
-    const spec = statCalloutTemplate.build({
-      value: '3x',
-      label: 'faster',
-      accentColor: '#22D3EE',
-    })
+    const spec = statCalloutTemplate.build(
+      { value: '3x', label: 'faster' },
+      { accentColor: '#22D3EE' },
+    )
     expect(spec.layers).toHaveLength(2)
     const label = spec.layers[1] as MgTextLayer
     expect(label.text).toBe('faster')
     expect(label.color).toBe('#22D3EE')
+  })
+
+  it('applies brand style: flat background, value color, label accent, and font', () => {
+    const spec = statCalloutTemplate.build(
+      { value: '10,000+', label: 'suscriptores' },
+      {
+        titleColor: '#0B1220',
+        accentColor: '#2B5CE6',
+        backgroundColor: '#F5F0E8',
+        fontFamily: 'Fraunces',
+      },
+    )
+    const bg = spec.layers[0] as MgShapeLayer
+    expect(bg.name).toBe('Background')
+    expect(bg.fillColor).toBe('#F5F0E8')
+    const value = spec.layers.find((l) => l.name === 'Stat value') as MgTextLayer
+    expect(value.color).toBe('#0B1220')
+    expect(value.fontFamily).toBe('Fraunces')
+    const label = spec.layers.find((l) => l.name === 'Stat label') as MgTextLayer
+    expect(label.color).toBe('#2B5CE6')
+    expect(label.fontFamily).toBe('Fraunces')
   })
 
   it('pops the value with a font-scale overshoot (mid keyframe exceeds the resting size)', () => {

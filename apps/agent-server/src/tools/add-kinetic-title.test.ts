@@ -134,6 +134,61 @@ describe('createAddKineticTitleTool', () => {
     )
   })
 
+  it('fills renderer knobs from a named brand, and lets explicit knobs win', async () => {
+    const { bridge } = makeBridge()
+    const render = vi.fn(fakeRender)
+    const tool = createAddKineticTitleTool({
+      bridge,
+      abortSignal: new AbortController().signal,
+      render,
+    })
+    await callTool(tool, {
+      title: 'Hola',
+      start_seconds: 0,
+      brand: 'abdias',
+      title_color: '#FF0000', // explicit override beats the brand title color
+    })
+    expect(render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backgroundColor: '#F5F0E8', // Paper (brand light mode)
+        subtitleColor: '#3D4A63', // Slate (brand secondary)
+        accentColor: '#2B5CE6', // Signal Blue
+        fontFamily: 'Fraunces',
+        titleColor: '#FF0000', // explicit wins
+      }),
+    )
+  })
+
+  it('resolves the brand dark mode when asked', async () => {
+    const { bridge } = makeBridge()
+    const render = vi.fn(fakeRender)
+    const tool = createAddKineticTitleTool({
+      bridge,
+      abortSignal: new AbortController().signal,
+      render,
+    })
+    await callTool(tool, { title: 'Ink', start_seconds: 0, brand: 'abdias', brand_mode: 'dark' })
+    expect(render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backgroundColor: '#0B1220', // Ink
+        titleColor: '#F5F0E8', // Paper
+        accentColor: '#7FA1F0', // lifted Signal Blue
+      }),
+    )
+  })
+
+  it('throws on an unknown brand', async () => {
+    const { bridge } = makeBridge()
+    const tool = createAddKineticTitleTool({
+      bridge,
+      abortSignal: new AbortController().signal,
+      render: fakeRender,
+    })
+    await expect(callTool(tool, { title: 'X', start_seconds: 0, brand: 'acme' })).rejects.toThrow(
+      /Unknown brand/,
+    )
+  })
+
   it('marks the placeholder as errored when the render fails (and rethrows)', async () => {
     const { bridge, calls } = makeBridge()
     const render: KineticTitleRenderer = async () => {

@@ -3,6 +3,7 @@ import type {
   MgLayer,
   MotionGraphicContent,
   MotionGraphicSpec,
+  MotionGraphicStyle,
   MotionGraphicTemplate,
 } from './types.ts'
 
@@ -40,47 +41,66 @@ export const statCalloutTemplate: MotionGraphicTemplate = {
   description:
     'A big hero value with an optional caption that pops in (font-scale overshoot + fade + rise). Native stand-in for a counter — punchy, but does not tick.',
   requiredContent: ['value'],
-  build(content: MotionGraphicContent): MotionGraphicSpec {
-    const accent = content.accentColor?.trim() || DEFAULT_ACCENT
+  build(content: MotionGraphicContent, style?: MotionGraphicStyle): MotionGraphicSpec {
+    const accent = style?.accentColor?.trim() || DEFAULT_ACCENT
+    const valueColor = style?.titleColor?.trim() || VALUE_COLOR
+    const backgroundColor = style?.backgroundColor?.trim() || undefined
+    const fontFamily = style?.fontFamily?.trim() || undefined
     const value = content.value?.trim() || '100%'
     const label = content.label?.trim() || undefined
 
-    // BACK → FRONT. Value behind so the (front) label never gets clipped by it.
-    const layers: MgLayer[] = [
-      {
-        kind: 'text',
-        name: 'Stat value',
-        text: value,
-        color: VALUE_COLOR,
-        fontWeight: 'bold',
-        textAlign: 'center',
-        fontSizeFrac: VALUE_SIZE_FRAC,
+    // BACK → FRONT. Optional flat background (brand) behind everything; value
+    // behind so the (front) label never gets clipped by it.
+    const layers: MgLayer[] = []
+
+    if (backgroundColor) {
+      layers.push({
+        kind: 'shape',
+        name: 'Background',
+        shapeType: 'rectangle',
+        fillColor: backgroundColor,
         xFrac: 0,
-        yFrac: VALUE_Y,
-        widthFrac: 0.86,
-        heightFrac: 0.3,
-        animations: [
-          {
-            // Pop: 60% → 112% (overshoot) → 100%.
-            property: 'fontSize',
-            keyframes: [
-              { atSec: 0, value: VALUE_SIZE_FRAC * 0.6, easing: 'ease-out' },
-              { atSec: 0.16, value: VALUE_SIZE_FRAC * 1.12, easing: 'ease-in-out' },
-              { atSec: 0.3, value: VALUE_SIZE_FRAC, easing: 'ease-out' },
-            ],
-          },
-          {
-            // Small rise into place.
-            property: 'y',
-            keyframes: [
-              { atSec: 0, value: VALUE_Y + 0.02, easing: 'ease-out' },
-              { atSec: 0.3, value: VALUE_Y, easing: 'linear' },
-            ],
-          },
-          fadeInOut(0, 0.2),
-        ],
-      },
-    ]
+        yFrac: 0,
+        widthFrac: 1,
+        heightFrac: 1,
+        animations: [fadeInOut(0, 0.2)],
+      })
+    }
+
+    layers.push({
+      kind: 'text',
+      name: 'Stat value',
+      text: value,
+      color: valueColor,
+      fontFamily,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      fontSizeFrac: VALUE_SIZE_FRAC,
+      xFrac: 0,
+      yFrac: VALUE_Y,
+      widthFrac: 0.86,
+      heightFrac: 0.3,
+      animations: [
+        {
+          // Pop: 60% → 112% (overshoot) → 100%.
+          property: 'fontSize',
+          keyframes: [
+            { atSec: 0, value: VALUE_SIZE_FRAC * 0.6, easing: 'ease-out' },
+            { atSec: 0.16, value: VALUE_SIZE_FRAC * 1.12, easing: 'ease-in-out' },
+            { atSec: 0.3, value: VALUE_SIZE_FRAC, easing: 'ease-out' },
+          ],
+        },
+        {
+          // Small rise into place.
+          property: 'y',
+          keyframes: [
+            { atSec: 0, value: VALUE_Y + 0.02, easing: 'ease-out' },
+            { atSec: 0.3, value: VALUE_Y, easing: 'linear' },
+          ],
+        },
+        fadeInOut(0, 0.2),
+      ],
+    })
 
     if (label) {
       layers.push({
@@ -88,6 +108,7 @@ export const statCalloutTemplate: MotionGraphicTemplate = {
         name: 'Stat label',
         text: label,
         color: accent,
+        fontFamily,
         fontWeight: 'medium',
         textAlign: 'center',
         fontSizeFrac: 0.038,
