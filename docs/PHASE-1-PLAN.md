@@ -854,7 +854,15 @@ colliding with the SDK tool_use_id already carried by `tool-call`):
 Approve runs the render; clicking Reject cancels the operation
 without timeline mutation.
 
-### 6.13 Smart editing decisions *(M6 — multiple tools)* ⏭️ **IN PROGRESS — planned 2026-05-29**
+### 6.13 Smart editing decisions *(M6 — multiple tools)* ✅ **core SHIPPED 2026-05-30**
+
+> **Superseded in part 2026-06-01:** M6 core (`find_moment` + `detect_chapters` +
+> `suggest_trims`) and M6.4 (`add_motion_graphic`) SHIPPED + verified. The
+> **§6.5.5 / M6.5 intent-router is DROPPED** — one orchestrator makes per-turn
+> tool routing a minor optimization not worth building at 16 tools (revisit only
+> if the count explodes). The next big push is the **Creative Director (§6.15)**,
+> which generalizes `suggest_trims` into a multi-step plan-and-execute capstone.
+> Any "M6.5 intent router" references below are superseded.
 
 Phase 1's last big push: tools that don't just *execute* user
 instructions but *make editing decisions*. **Finalized build order
@@ -952,6 +960,85 @@ require retrofitting:**
    it for future tools.
 
 No code changes today; just constraints to apply going forward.
+
+### 6.15 Creative Director (Phase-1 capstone) + Convergence pipeline *(planned 2026-06-01)*
+
+**The next big push.** Full analysis: [CONVERGENCE-ANALYSIS.md](CONVERGENCE-ANALYSIS.md).
+Memory: [[creative-director-direction]], [[convergence-pipeline-concept]].
+
+**(a) Editorial creative director — build first.** A plan-and-execute layer ON
+the single orchestrator (NOT a separate agent): gather (timeline + transcript)
+→ reason (form an editorial plan, each step with a rationale) → propose a
+REVIEWABLE multi-step checklist (approve all / pick some / edit / reject) →
+execute approved steps via the existing 16 tools (each keeps its own undo +
+spend gate). Generalizes the shipped `suggest_trims` from one decision to a
+multi-action plan. Needs (director infra, not action tools):
+
+- `EditPlan` / `EditPlanStep` schema (see CONVERGENCE-ANALYSIS §4) — **build first**.
+- `propose_edit_plan` tool reasoning over timeline + transcript(s).
+- A **multi-step plan-review UI** — a toggle/edit checklist, bigger than the
+  single M5.2 card. Keep `requestConfirmation` as-is for single-tool gates; add
+  this as a *sibling* bridge action (`request-plan-approval`).
+- Execution orchestration: partial approval, run approved steps, handle a
+  mid-plan failure.
+
+Ships independently on EXISTING footage. **Line to hold:** it proposes edits /
+augmentations to footage the user already has; it does NOT design a from-scratch
+scene deck (that's the convergence front-half / Phase 2).
+
+**(b) Convergence pipeline (script→export) — the same director as the
+through-line.** NOT one end-to-end agent: a **persisted `Project.storyboard`
+document** advanced by **resumable, individually-approvable stages**. The stage
+is a field on the document; the document IS the cross-stage context. Persist on
+the existing `Project` schema (ARCHITECTURE Q3) + workspace-fs + migrations — no
+new store. Stages: plan (`read_script` → scenes) → stills → animate (single-frame
+i2v by default) → assemble + VO → editorial pass (the director from (a)). See
+CONVERGENCE-ANALYSIS §3.
+
+**(c) Build order.** Director-first (confirmed). Concurrently reserve
+`Project.storyboard` (version bump, mostly-empty) and design `EditPlan` +
+`StoryboardScene` to nest; grow scene fields reactively. Then the front half in
+dependency order.
+
+**(d) MVP.** Spike 0 (hand-authored 3-scene doc → VO → `generate_broll` per scene
+→ subtitles → export; fail-fast on the taste risk) → MVP (`read_script` +
+assembler loop; single-shot video, no two-keyframe). Reuses shipped
+`generate_voiceover` / `generate_broll` / `add_subtitles` / `add_motion_graphic`
++ the M5.2 gate + placeholder→swap + export. See CONVERGENCE-ANALYSIS §6.
+
+**(e) VO-driven timing.** TTS-first: synthesize VO (cheap, returns authoritative
+`durationSec`) → assembler lays scenes by cumulative VO duration → size each clip
+to its VO window (watch the Kling 3–15s clamp). Word-timestamps are the back-half
+polish layer (captions / graphics), reusing the `suggest_trims` transcript +
+`placement` path. See CONVERGENCE-ANALYSIS §7.
+
+**(f) Approval + brand.** One reusable plan-review surface (the director's, reused
+as the storyboard grid). One genuinely new gate primitive: a **batch spend gate**
+(animate N scenes = $X, partial-failure semantics). Brand via the shipped
+`resolveBrandKnobs()` on the editorial pass's graphics; text stays OUT of the AI
+stills (added in the edit as editable native / brand motion graphics).
+
+**Graduates to a Skill (§6.14 / M7)** once the stages run end-to-end ≥3×
+deterministically — a skill over one persisted document is the composable shape.
+
+### 6.16 Video model arbitrage — fal-only capability registry *(planned 2026-06-01)*
+
+Locked decision: [ARCHITECTURE.md §5 Q5](ARCHITECTURE.md); memory
+[[video-model-strategy]]; detail [CONVERGENCE-ANALYSIS.md §8](CONVERGENCE-ANALYSIS.md).
+
+- **fal is the SOLE video provider** (proven reliable). Cheaper aggregators
+  (kie.ai — `kie` is a reserved-but-unbuilt id; muapi.ai) evaluated and PARKED;
+  revisit only if fal *cost* becomes a real pain.
+- **Multi-MODEL arbitrage within fal:** a curated capability registry (id, modes,
+  caps, cost tier, strengths / weaknesses, requestShape→adapter, `lastVerified`)
+  + hard-constraint filter in code → agent taste-picks among viable candidates →
+  chosen model + cost on the M5.2 gate with an override dropdown. `model:'auto'`
+  triggers selection. Evolve `buildRequestBody`'s regex branches into
+  registry-keyed per-model adapters (evolution, not rewrite).
+- **House-model coherence bias** (one model per montage; diverge only on a hard
+  requirement). **Two-keyframe = opportunistic** (a `caps.endFrame` flag; default
+  is single-frame i2v + motion prompt). Self-contained: upgrades the shipped
+  generation tools now and feeds the convergence pipeline later.
 
 ### 6.5 Cross-pollinated patterns (HyperEdit analysis, 2026-05-26)
 
@@ -1117,7 +1204,13 @@ Gemini by default**. The existing local Whisper / OpenAI / LFM paths
 keep being the defaults. Gemini is an opt-in tool the user can reach
 for when they want it.
 
-**6.5.5 Director / intent router** *(deferred — revisit between M5 and M6)*
+**6.5.5 Director / intent router** ❌ **DROPPED 2026-06-01**
+
+> **Superseded:** the per-turn intent router is dropped — one orchestrator makes
+> tool-set routing a minor optimization not worth building at 16 tools (revisit
+> only if the count explodes). The *planning* layer it gestured at is now the
+> **Creative Director (§6.15)** — a plan-and-execute capstone over the existing
+> tools, not a tool-filter. The original sketch is kept below for provenance only.
 
 Client-side or server-side preflight that restricts the tool set the
 agent sees per turn based on the user's prompt + selection state,
@@ -1179,6 +1272,12 @@ in a future session:
 Each milestone = a recordable demo + a manual smoke-test list. Roughly two
 weeks per milestone target, faster if the prereqs go cleanly.
 
+> **Live status note:** the table is the original plan ledger. For current
+> shipped state (M0–M6 + M6.4 + HyperFrames `add_kinetic_title` + brand profiles,
+> tool count **16**) the source of truth is the [[ai-video-editor-status]] memory
+> note. Tail rows updated 2026-06-01 for the creative-director / convergence
+> strategy.
+
 | ID | Demo | Manual smoke tests | Status |
 |---|---|---|---|
 | **M0** | Pre-prereqs done — agent server runs, browser connects, dummy tool roundtrip works | `npm run dev:all` boots both; chat panel shows "connected"; `say hi` echoes | ✅ done |
@@ -1195,9 +1294,12 @@ weeks per milestone target, faster if the prereqs go cleanly.
 | **M5.2** | Concept-card approval flow for expensive generations | Tools that exceed a cost/time threshold return a `pending-confirmation` envelope instead of executing; chat renders Approve / Reject / Edit; the still image from M4.7 is the natural concept card | ✅ shipped + verified 2026-05-29 (animate_image gated; image→animate Approve path confirmed live) |
 | **M6** | Smart editing decisions — **core = `find_moment` → `detect_chapters` → `suggest_trims`** | Transcript-first reasoning via a new `TranscriptReasoningProvider`; find_moment returns a timestamp; detect_chapters drops markers in one undo entry; suggest_trims proposes ranges behind the M5.2 `requestConfirmation` gate, then cuts via `removeFillerWordsFromItems`; the chat starts to feel like an editor *deciding* | ⏭️ **IN PROGRESS** — planned 2026-05-29 |
 | **M6.4** | `add_motion_graphic` — FreeCut-native template insertion (animated counter, simple title card / lower third) | Pure FreeCut text+shape+keyframe compositions in `apps/agent-server/src/templates/`; **scoped as the complement to Hyperframe** (no stylized/avatar/HeyGen-template overlap — those stay on the Hyperframe track); planned in its own pass against Hyperframe's template inventory | planned, after M6 core |
-| **M6.5** | §6.5.5 intent router — per-turn tool-set pre-filter (keyword + Haiku fallback) | Built after M6 core takes the count to 14, tuned against the real tool set; §12.2 system-prompt decision tree is the in-M6 stopgap | planned, after M6 core |
-| **M7** | Skills graduation — package stable multi-tool workflows as Claude Agent SDK skills (see VISION §13) | A workflow becomes a skill when (a) the agent has run it ≥3 times, (b) the composition is deterministic, (c) it can be described in one sentence. First candidates: `match_vibe_broll`, `karaoke_caption_pass`, `full_silence_cut` | after M6, ongoing |
-| **Hyperframe** | *(separate track, blocked)* Hyperframe tools — `add_lower_third`, `add_title_card`, `generate_avatar_clip`, etc. — all reuse the M3 placeholder→swap pattern + M4.6 analysis grounding | When Hyperframe API docs available; placeholder→swap flow stays identical; **for AI-generated talking-head / avatar / lower-third content, Hyperframe is THE renderer** (not Remotion, not a CLI farm). Output drops onto FreeCut's timeline as ordinary media | blocked on API docs |
+| **M6.5** | ~~§6.5.5 intent router~~ — **DROPPED 2026-06-01** | One orchestrator makes per-turn tool routing a minor optimization not worth building at 16 tools; revisit only if the count explodes | ❌ dropped |
+| **M7** | Skills graduation — package stable multi-tool workflows as Claude Agent SDK skills (see VISION §13) | A workflow becomes a skill when (a) the agent has run it ≥3 times, (b) the composition is deterministic, (c) it can be described in one sentence. First candidates: `match_vibe_broll`, `karaoke_caption_pass`, `full_silence_cut`; the **convergence pipeline** graduates here | after M8, ongoing |
+| **HyperFrames** | Rich/baked motion graphics via local HTML→MP4 (`add_kinetic_title` shipped; counter / chart / lower-third-overlay / logo-reveal / captions = the Phase-D feature-menu) — all reuse placeholder→swap (swap-with-bytes) | ✅ `add_kinetic_title` shipped + brand-aware 2026-06-01; rest deferred (Phase D). **AI avatar / talking-head is a SEPARATE paid HeyGen API — not built** | 🟢 partial / 🔴 menu deferred |
+| **M8 — Creative Director** | Editorial plan-and-execute capstone (§6.15a): `propose_edit_plan` + `EditPlan` schema + multi-step plan-review UI + partial execution over the existing 16 tools | Reads timeline + transcript → proposes a reviewable multi-step plan → approve/pick/edit/reject → executes; generalizes `suggest_trims`; ships on EXISTING footage | **NEXT (top priority)** |
+| **Convergence pipeline** | script→export over a persisted `Project.storyboard` doc + resumable stages, with M8's director as the through-line (§6.15b; [CONVERGENCE-ANALYSIS.md](CONVERGENCE-ANALYSIS.md)) | Spike 0 (hand-authored doc→export) → MVP (`read_script` + assembler) → grows into the full storyboard front-half, handing off at the timeline | planned, after M8 |
+| **Model registry** | fal-only multi-model capability registry + filter→taste-pick selection (§6.16) | Self-contained; upgrades `generate_broll` / `animate_image` with per-shot model arbitrage + accurate cost gating | planned, can land alongside M8 |
 
 ---
 
@@ -1218,32 +1320,29 @@ These will be settled during planning of individual milestones, not now:
   dollar/time cost should a generation tool require a confirmation
   card vs. running straight through? Likely `cost > $0.50` OR
   `expected duration > 30s`, but tune from real usage.
-- **Intent-router activation threshold** — when does §6.5.5 become
-  load-bearing? Currently set to "at ~10 tools", which lands around
-  M5.1. Revisit then.
+- **Intent-router activation threshold** — ❌ **MOOT (dropped 2026-06-01).**
+  §6.5.5 / M6.5 is dropped; one orchestrator makes per-turn tool routing a minor
+  optimization not worth building at 16 tools. Revisit only if the count explodes.
 - **Should the chat panel persist conversation history per project?** —
   probably yes (`projects/{id}/chat.json`), but how much context to replay
   on reload is open
 
-**Phase 2 carryovers from the HyperEdit analysis (revisit when storyboard work starts):**
+**Phase 2 / convergence carryovers (RESOLVED 2026-06-01 — see
+[CONVERGENCE-ANALYSIS.md](CONVERGENCE-ANALYSIS.md) + §6.15):**
 
-- *`Scene[]` schema as the universal generative output shape.* HyperEdit
-  expresses every AI-generated segment as one of ~15 discriminated
-  scene types (`title | steps | features | stats | text | media | chart
-  | countdown | comparison | shapes | emoji | gif | lottie | 3d` plus
-  transitions) with uniform `content`, `camera`, `transition`,
-  `mediaAnimation` fields. Worth adopting as Phase 2's
-  `Project.storyboard` shape — we render via FreeCut's GPU primitives
-  + keyframes rather than Remotion, but the schema itself is gold.
-  Decision needed when storyboard work begins.
-- *Concept-card approval flow as the storyboard UI.* §6.5.3's
-  analyze→approve→render pattern is exactly the Phase 2 scene-card
-  flow. Build the protocol in Phase 1 if we want spend-confirmation
-  on `generate_broll`/`replace_clip_with_regeneration`; reuse it
-  wholesale for Phase 2.
-- *Director / intent router on agent-server.* §6.5.5. Defer until
-  tool count justifies the routing layer (~8–10+ tools, i.e. once
-  Hyperframe's M6 surface lands or Phase 2 storyboard tools ship).
+- *`Scene[]` schema → the convergence `StoryboardDoc`.* RESOLVED: the storyboard's
+  generative `Scene[]` lives at `Project.storyboard` (existing schema + migrations,
+  no new store), starts minimal, and grows reactively (CONVERGENCE-ANALYSIS §4).
+  Keep it SEPARATE from HyperEdit's 15-type motion-graphics union — that union is
+  editorial *overlay* content (rendered native / HyperFrames), not the generative
+  scene. The two are different layers; do not merge them.
+- *Concept-card approval flow.* RESOLVED: shipped as the M5.2 single-decision gate;
+  the convergence pipeline reuses the **multi-step plan-review surface** (built for
+  the Creative Director, §6.15a) as the storyboard grid, plus a new **batch spend
+  gate** for animating N scenes. Keep `requestConfirmation` for single-tool gates.
+- *Director / intent router.* RESOLVED: the **Creative Director (§6.15 / M8)** is
+  the plan-and-execute layer on the one orchestrator; the **intent router is
+  DROPPED** (agent-routing is moot with one orchestrator).
 
 **Settled during M0–M3 build (recorded here for the audit trail):**
 
@@ -1297,8 +1396,9 @@ These will be settled during planning of individual milestones, not now:
 
 ## 9. Reference
 
-- Build brief: top of conversation (not in repo yet — consider adding as
-  `docs/BUILD-BRIEF.md` for future reference)
+- Build brief: [`docs/BUILD-BRIEF.md`](BUILD-BRIEF.md) (preserved verbatim;
+  ARCHITECTURE.md wins on any disagreement)
+- Convergence / Creative Director analysis: [`docs/CONVERGENCE-ANALYSIS.md`](CONVERGENCE-ANALYSIS.md)
 - Architecture: `docs/ARCHITECTURE.md`
 - Phase 0 decisions: `docs/ARCHITECTURE.md` §5
 - Reuse inventory: `docs/ARCHITECTURE.md` §4.6

@@ -280,7 +280,7 @@ chat panel, not a dedicated storyboard view*
 | Concept-card approval flow | M5.2 | `analyze-for-animation` + `render-from-concept` endpoint pair |
 | `Scene[]` discriminated union | Phase 2 | `DynamicAnimation.tsx` line 80 |
 | Chapter detection via Gemini | M6 | `handleSessionChapters` line 1343 |
-| Hybrid keyword + LLM intent router | §6.5.5 (post-M5.1) | `scripts/intent-classifier.js` |
+| Hybrid keyword + LLM intent router | ❌ DROPPED 2026-06-01 (one orchestrator → routing moot) | `scripts/intent-classifier.js` |
 | Claude via `claude -p` subprocess for subscription auth | already shipped (M0) | `scripts/providers/llm.js` lines 125-209 |
 
 ## Patterns we're explicitly rejecting

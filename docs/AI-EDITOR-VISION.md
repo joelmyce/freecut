@@ -74,8 +74,12 @@ co-agents the user has to route to.
 
 Provider abstraction stays per-capability (transcription / video gen /
 TTS / **analysis**) so the *backend* of each tool is swappable
-(`fal` → `kie`, `kokoro` → `elevenlabs`, `gemini-flash` → future
-`gemini-pro`) without touching the tool surface.
+(`kokoro` → `elevenlabs`, `gemini-flash` → future `gemini-pro`) without
+touching the tool surface. **Video is fal-only (2026-06-01):** the reserved
+`kie` provider id + cheaper aggregators (muapi.ai) were evaluated and **parked**
+— arbitrage happens *within fal across models* via a curated capability registry,
+not across providers (see [ARCHITECTURE.md §5 Q5](ARCHITECTURE.md) +
+[CONVERGENCE-ANALYSIS.md §8](CONVERGENCE-ANALYSIS.md)).
 
 ---
 
@@ -83,6 +87,13 @@ TTS / **analysis**) so the *backend* of each tool is swappable
 
 Green = already shipped in FreeCut. Yellow = next-up. Red = deferred
 to Phase 2 or blocked. ⛔ = explicitly rejected (do not port).
+
+> **Stale as of 2026-06-01:** this matrix reflects the pre-M4.6 state. Since
+> then M4.6 (analyze_clip), M4.7 (image+animate), M4.8 (gif), M5 (voiceover),
+> M5.1 (karaoke), M6 (find_moment / detect_chapters / suggest_trims), M6.4
+> (add_motion_graphic), HyperFrames (add_kinetic_title), and brand profiles all
+> SHIPPED. Live status: [[ai-video-editor-status]]. The evolved destination is
+> **§15** (Creative Director + Convergence pipeline).
 
 | HyperEdit capability | FreeCut status | Target | Notes |
 |---|---|---|---|
@@ -274,12 +285,14 @@ Edit buttons. The follow-up action calls the actual render.
 
 - **Remotion as a rendering layer.** FreeCut's text + shapes +
   transitions + masks + keyframes already render everything we need
-  on-timeline, without a CLI farm. **For the workflow Remotion would
-  otherwise own — AI-generated talking-head / avatar / lower-third
-  content — Hyperframe is the path** (M6, blocked on API docs).
-  Hyperframe tools will reuse the M3 placeholder→swap pattern and
-  the M4.6 analysis surface; the rendered output drops onto FreeCut's
-  timeline as ordinary media, no separate render farm involved.
+  on-timeline, without a CLI farm. **For rich/baked motion graphics —
+  HyperFrames is the path** (open-source local HTML→MP4; `add_kinetic_title`
+  SHIPPED 2026-06-01, brand-aware). HyperFrames tools reuse the M3
+  placeholder→swap pattern (swap-with-bytes); rendered output drops onto
+  FreeCut's timeline as ordinary media, no render farm. **AI talking-head /
+  avatar is a SEPARATE paid HeyGen API — not built** (open-source HyperFrames
+  is HTML→MP4 only). The editable-vs-baked boundary (native `add_motion_graphic`
+  vs baked HyperFrames MP4) is settled — Remotion stays rejected.
 
 - **Cloudflare Worker as backend.** We're a local-first dev tool;
   the agent-server-on-localhost shape is right.
@@ -469,3 +482,37 @@ do that we already can:
 We don't need to port any of that; we need to expose it *through* the
 agent. The AI editor's value-add isn't a new editor — it's the agent
 that knows how to drive ours.
+
+---
+
+## 15. The evolved north star — Creative Director + Convergence pipeline (2026-06-01)
+
+The destination has sharpened. The two BUILD-BRIEF workflows (timeline editing +
+storyboard creation) converge into **one guided pipeline from a written script to
+a finished faceless video**, with the **creative director** as the through-line.
+Full analysis: [CONVERGENCE-ANALYSIS.md](CONVERGENCE-ANALYSIS.md). Plan:
+[PHASE-1-PLAN.md §6.15–§6.16](PHASE-1-PLAN.md). Locked decisions:
+[ARCHITECTURE.md §5 Q5/Q13](ARCHITECTURE.md).
+
+**Shape — NOT "one end-to-end agent":** a **persisted `Project.storyboard`
+document** advanced by **resumable, individually-approvable stages** — plan
+(script→scenes) → stills → animate → assemble+VO → editorial pass. One Sonnet
+orchestrator runs stage-scoped episodes; the *stage* is a field on the document;
+the document IS the cross-stage context (no inter-agent handoff). Persist on the
+existing project schema + workspace-fs + migrations — no new store.
+
+**The creative director** is a plan-and-execute layer ON that one orchestrator
+(NOT a separate agent): review timeline + transcript → propose a reviewable
+multi-step `EditPlan` → execute approved steps via the existing tools. It is the
+**Phase-1 capstone** (editorial over an EXISTING timeline, generalizing the
+shipped `suggest_trims`) and the **back half** of the convergence pipeline. Build
+**director-first**; the generative front-half plugs in front of it later, handing
+off at the timeline (BUILD-BRIEF's "timeline is the meeting point").
+
+**Settled this round:** ① **M6.5 intent-router DROPPED** (one orchestrator makes
+agent-routing moot). ② **fal is the sole video provider** (cheaper aggregators
+parked); multi-*model* arbitrage within fal via a curated capability registry +
+house-model coherence bias. ③ **Two-keyframe (start+end) is opportunistic, not
+required** — default animate path is single-frame i2v + motion prompt. ④ One
+reusable plan-review surface + a new batch spend gate; on-brand graphics in the
+edit pass via the shipped brand resolver, with text kept OUT of the AI stills.

@@ -531,22 +531,44 @@ writes to a tiny IDB record (parallel to the existing `freecut-handles-db`),
 or to a file under the workspace (`{workspace}/.secrets.json` — but **add it
 to `.gitignore`** if the workspace is ever checked in).
 
-### Q5. Default model for `generate_broll`
+### Q5. Default model for `generate_broll` — and multi-model arbitrage
 
-**Decision: configurable per-call, cost-optimized default.** For
-a personal/self-hosted tool the cost ceiling matters more than the marginal
-quality jump.
+**Decision: configurable per-call, cost-optimized default; fal is the sole
+video provider.** For a personal/self-hosted tool the cost ceiling matters more
+than the marginal quality jump.
 
-**Locked during M3 (2026-05-26):** the implementation default is
-`fal-ai/kling-video/v1.5/standard/text-to-video` (Kling 1.5 Standard) —
-fast, cheap, stable. The tool exposes a `model` arg so any fal model id
-can be substituted per call (e.g. `fal-ai/kling-video/v3/standard/text-to-video`
-for the latest, `fal-ai/kling-video/v3/pro/text-to-video` for top quality).
-The fal provider's request-body builder is model-aware: legacy Kling family
-sends `{duration: "5"|"10"}`; Kling v3 sends `{duration: "3"-"15",
-generate_audio: false}`. A storyboard-side default selector (Phase 2) will
-make this a per-project setting; for Phase 1 the chat prompt is the
-selector.
+**Locked during M3 (2026-05-26), default bumped 2026-05-27:** the implementation
+default is `fal-ai/kling-video/v3/standard/text-to-video` (Kling v3 Standard —
+bumped from v1.5/standard after fal retired the older sub-models). The tool
+exposes a `model` arg so any fal model id can be substituted per call. The fal
+provider's request-body builder is model-aware: legacy Kling family sends
+`{duration: "5"|"10"}`; Kling v3 sends `{duration: "3"-"15", generate_audio:
+false}`; the image-to-video branch sends `start_image_url` only (single frame).
+
+**Refined 2026-06-01 (provider + arbitrage strategy — see [[video-model-strategy]]
+and [CONVERGENCE-ANALYSIS.md §8](CONVERGENCE-ANALYSIS.md)):**
+
+- **fal stays the SOLE video provider** — proven reliable. Cheaper API
+  aggregators (kie.ai — note `kie` is a reserved-but-unbuilt provider id in
+  `providers/video/types.ts`; and muapi.ai) were evaluated and **parked**: for a
+  personal project fal's reliability beats a marginal, login-only-verifiable
+  discount, and stacking an aggregator on top of fal (itself an aggregator) just
+  adds failure surface. Revisit only if fal *cost* becomes a real pain.
+- **Multi-MODEL arbitrage WITHIN fal is the goal** (the brief's "model arbitrage
+  per call"): a curated **capability registry** (declarative table — id, modes,
+  caps, cost tier, strengths/weaknesses, requestShape→adapter, `lastVerified`)
+  + a hard-constraint filter in code → the agent taste-picks among the viable
+  candidates → chosen model + cost on the M5.2 gate with an override dropdown.
+  `model:'auto'` triggers selection; an explicit id validates against the
+  registry. Evolve the `buildRequestBody` regex branches into registry-keyed
+  per-model adapters (evolution, not rewrite).
+- **House-model coherence bias:** prefer one model per montage; diverge only on a
+  hard requirement (a creative-director-level call).
+- **Two-keyframe (start+end) is OPPORTUNISTIC, not required** (user 2026-06-01).
+  Default animate path = single-frame i2v + motion prompt. Capable fal models if
+  ever wanted: Seedance 1.5 Pro, Kling O1, Veo 3.1 first-last-frame.
+- A storyboard-side default selector (Phase 2 / convergence) reuses the same
+  registry; for Phase 1 the chat prompt + `auto` selection is the selector.
 
 ### Q6. Browser or Electron?
 
@@ -706,6 +728,31 @@ All providers register against `shared/state/local-inference/registry.ts`
 unified status panel can show what's available and what's running.
 
 ---
+
+### Q13. Convergence pipeline & Creative Director — agent topology
+
+**Decision (2026-06-01): one orchestrator + a planning layer + a persisted
+document — NOT an end-to-end agent, NOT sibling agents.** Full detail in
+[CONVERGENCE-ANALYSIS.md](CONVERGENCE-ANALYSIS.md); plan in
+[PHASE-1-PLAN.md §6.15](PHASE-1-PLAN.md); memory [[creative-director-direction]]
++ [[convergence-pipeline-concept]].
+
+- The **creative director** is a plan-and-execute layer ON the single Sonnet
+  orchestrator (not a separate agent): gather → reason → propose a reviewable
+  multi-step `EditPlan` → execute approved steps via the existing tools. It is
+  the **Phase-1 capstone** (editorial over an EXISTING timeline), generalizing
+  the shipped `suggest_trims`.
+- The **convergence pipeline** (script→export) is the same director as the
+  through-line across a **persisted `Project.storyboard` document** advanced by
+  **resumable, individually-approvable stages** (plan → stills → animate →
+  assemble+VO → editorial). The *stage* is a field on the document; the document
+  IS the cross-stage context (no inter-agent handoff object). It is NOT one
+  long-lived agent session.
+- Persist on the **existing project schema** (`Project.storyboard`, Q3),
+  workspace-fs, and migrations — **no new store** (avoids the rejected "two
+  parallel session systems").
+- **M6.5 intent-router DROPPED** — one orchestrator makes agent-routing moot at
+  the current tool count.
 
 ## 6. Suggested Plan for Phase 1
 
